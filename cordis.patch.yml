@@ -1,0 +1,12 @@
+# Enable the MATLAB Agentic Toolkit binding for a profile that selects this bundle.
+#
+# The row id is stable: a profile can retarget it in its own cordis.patch.yml,
+# for example:
+#
+#   - id: matlab-agentic
+#     config:
+#       matlabRoot: C:\Program Files\MATLAB\R2025b
+#       skillGroups: [matlab-core, signal-processing]
+- insert:
+    - id: matlab-agentic
+      name: 'dsh-plugin-matlab'

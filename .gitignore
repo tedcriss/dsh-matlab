@@ -1,0 +1,10 @@
+# Dependencies and local state never belong in the repository.
+node_modules/
+.tmp/
+*.log
+
+# Editors and OS noise.
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

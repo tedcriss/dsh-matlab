@@ -1,0 +1,39 @@
+# MATLAB Agentic Toolkit
+
+Brings MathWorks' own MATLAB capability surface into DSH without reimplementing it.
+
+## What it adds
+
+- **Tools** from the MATLAB MCP Server, registered as `mcp__matlab__<tool>`: `evaluate_matlab_code`, `run_matlab_file`, `run_matlab_test_file`, `check_matlab_code`, `detect_matlab_toolboxes`, plus the two `guidelines://` resources.
+- **Skills** from the MATLAB Agentic Toolkit, loaded straight from `skills-catalog/<group>` with `dsh-skill-filesystem`. By default only the toolkit's required group (`matlab-core`, 6 skills) is loaded; add groups with `skillGroups`.
+- **Simulink** groups and its `tools/tools.json` MCP extension, when the Simulink Agentic Toolkit is installed alongside.
+
+## What it does not do
+
+It runs no MATLAB code itself, copies no `SKILL.md`, and rewrites nothing under `~/.matlab`. `matlab-mcp-server` is the tool provider; the toolkit checkout is the skill provider; `dsh-mcp-client` and `dsh-skill-filesystem` are the transports.
+
+## Requirements
+
+MATLAB R2021a or later, the MATLAB MCP Server binary, and a MATLAB Agentic Toolkit checkout. The official installer provides all three:
+
+```matlab
+setupAgenticToolkit("install")
+```
+
+The plugin discovers that install in `~/.matlab/agentic-toolkits`, reads the MATLAB version you chose there, and reuses the binary it placed. With no installation it downloads the binary and clones the toolkit itself.
+
+## Settings worth knowing
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `skillGroups` | required group only | Which `skills-catalog` groups to load |
+| `sessionMode` | `auto` | `existing` reuses a MATLAB that ran `shareMATLABSession()` |
+| `matlabRoot` | discovered | Which MATLAB the server starts |
+| `displayMode` | `desktop` | `nodesktop` runs without the MATLAB desktop |
+| `toolCallTimeoutMs` | 600000 | Simulations and test suites exceed the DSH default |
+
+## Diagnosis
+
+`GET /plugin/matlab/status` reports the resolved MATLAB root, the binary and its version, the probe result (tool and resource names), the loaded skill groups with skill counts, and the warnings raised during activation.
+
+Full reference: [README](../README.md). Design rationale: [DESIGN](../DESIGN.md).

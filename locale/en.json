@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "MATLAB Agentic Toolkit",
+    "description": "Load MathWorks MATLAB skills and MATLAB MCP Server tools, unmodified.",
+    "detail": "docs/DETAIL.md"
+  }
+}

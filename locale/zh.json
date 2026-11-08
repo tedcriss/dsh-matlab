@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "MATLAB 智能体工具包",
+    "description": "直接加载 MathWorks 的 MATLAB 技能包与 MATLAB MCP Server 工具，不做改写。",
+    "detail": "docs/DETAIL.zh.md"
+  }
+}
