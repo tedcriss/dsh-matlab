@@ -4,6 +4,11 @@
   "description": "Bring MathWorks MATLAB Agentic Toolkit skills and MATLAB MCP Server tools to DeepSeek Harness by pointing at what MATLAB already ships.",
   "license": "MIT",
   "icon": "./icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tedcriss/dsh-matlab.git"
+  },
+  "homepage": "https://github.com/tedcriss/dsh-matlab#readme",
   "keywords": [
     "dsh",
     "deepseek-harness",
