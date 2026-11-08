@@ -268,6 +268,7 @@ node --test          # 63 个用例；插件本身无构建步骤、无运行时
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
+- 四个 `@deepseek-ai/*` 依赖都声明为 **optional peer**：它们由 DSH 安装本身提供，若声明成必需依赖，包管理器会去公共 registry 取（`@deepseek-ai/schemastery` 在 npm 上会连带拉取未发布的 DSH 包而安装失败）；
 - 与 MATLAB 有关的用例是**真机集成**：设置了 `MATLAB_MCP_SERVER`，或 `~/.matlab/agentic-toolkits/bin/` 存在时，真的会拉起 MathWorks 服务做一次 MCP 握手，并逐个校验 158 个 `SKILL.md` 是否符合 DSH 的技能 frontmatter 规则；否则自动跳过；
 - `test/cordis-contract.integration.test.js` 用**真实 Cordis** 激活插件（只替换传输层），因为插件 `apply` 的返回值会被 Cordis 当作 effect 校验——这条契约出错时线上表现是 `TypeError: Invalid effect`；
 - 目录说明：
