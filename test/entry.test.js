@@ -4,7 +4,7 @@ import { register } from 'node:module'
 
 // Registered before the dynamic import below; the stub replaces only the schema
 // module, so the rest of the entry graph is the real one.
-register('./fixtures/schemastery-hook.mjs', import.meta.url)
+register('../test-support/schemastery-hook.mjs', import.meta.url)
 
 const plugin = await import('../lib/index.js')
 
