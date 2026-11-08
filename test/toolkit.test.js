@@ -132,3 +132,19 @@ test('empty selection loads required groups only', async t => {
   assert.deepEqual(selectSkillGroups(toolkits, ['extra']).groups.map(group => group.name), ['extra'])
   assert.deepEqual(selectSkillGroups(toolkits, ['core', 'nope']).unknown, ['nope'])
 })
+
+test('a star selects every group, including one toolkit missing from the installer', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-toolkit-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const root = await makeToolkit(dir, 'toolkit', {
+    manifest: MANIFEST,
+    groups: [{ name: 'core', required: true }, { name: 'extra' }],
+  })
+  const toolkits = [await readToolkit(root)]
+  const selection = selectSkillGroups(toolkits, ['*'])
+  assert.deepEqual(selection.groups.map(group => group.name), ['core', 'extra'])
+  assert.deepEqual(selection.unknown, [])
+  // A star plus a name does not duplicate the named group.
+  assert.equal(selectSkillGroups(toolkits, ['*', 'extra']).groups.length, 2)
+  assert.deepEqual(selectSkillGroups(toolkits, ['*', 'nope']).unknown, ['nope'])
+})

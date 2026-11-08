@@ -109,7 +109,7 @@ pnpm add file:/path/to/dsh-matlab
 | `autoProvision` | `true` | 缺失时下载二进制、克隆 MATLAB 工具包 checkout |
 | `installRoot` | `~/.matlab/agentic-toolkits` | MathWorks 安装器根目录（只读使用） |
 | `toolkitRoots` | `[]` | 额外/替代的工具包 checkout；给定时优先 |
-| `skillGroups` | `[]`（仅必需组） | 要加载的技能组；留空只加载每个工具包的 `required: true` 组 |
+| `skillGroups` | `[]`（仅必需组） | 要加载的技能组；留空只加载每个工具包的 `required: true` 组，`['*']` 加载全部组（MATLAB 工具包为 24 组 / 158 个技能） |
 | `extensionFiles` | `[]` | 额外 MCP 工具定义文件（Simulink 工具包的 `tools/tools.json` 会自动带上） |
 | `watchSkills` | `true` | 工具包变更时热更新技能目录 |
 | `probe` / `probeTimeoutMs` | `true` / `20000` | 连接前做一次 MCP 握手探测 |
@@ -143,6 +143,24 @@ pnpm add file:/path/to/dsh-matlab
    }
    ```
 
+## 只用本插件、不跑官方安装器时能得到什么
+
+插件本身就能完成“获取 + 接线”，但官方安装器仍负责三件它不替代的事。实测（全新 `DSH_HOME`、空 install root、无任何 `~/.matlab` 状态）首启耗时 **约 14 秒**：
+
+| 能力 | 只装本插件 | 需要安装器或手动补一步 |
+| --- | --- | --- |
+| MATLAB MCP Server 二进制 | ✅ 自动下载官方 Release（19.9 MB，实测 v0.16.0） | 离线/内网：手动下载后设 `mcpServerPath` |
+| 5 个 MCP 工具 + 2 个 `guidelines://` 资源 | ✅ 探测即通过 | — |
+| 技能文件落地 | ✅ `git clone --depth 1` 官方工具包（24 组 / 158 个技能） | 无 `git`：自行 clone 后设 `toolkitRoots` |
+| 技能挂载数量 | ⚠️ 默认只有 `matlab-core` 的 6 个 | `skillGroups: ['*']` 即 24 组 / 158 个（实测） |
+| 复用你正在用的 MATLAB 会话（`sessionMode: existing`） | ❌ 需要 MATLAB 侧装 add-on | 跑一次 `<DSH_HOME>/matlab/bin/matlab-mcp-server.exe --setup-matlab --matlab-root=<MATLAB根>`，再在 MATLAB 里 `shareMATLABSession()` |
+| Simulink 技能与 `tools/tools.json` 工具扩展 | ❌ 不会自动克隆 Simulink 工具包 | `setupAgenticToolkit("Toolkit","simulink")`，或自行 clone 后设 `toolkitRoots` |
+| 记住你在安装器里选的 MATLAB 版本 | ⚠️ 改为 环境变量 → PATH → 注册表 → 最新安装目录 发现 | 多版本共存时显式设 `matlabRoot` |
+| 遥测默认关闭 | ❌ 默认仍开启 | `disableTelemetry: true` |
+| 二次启动 | ✅ 复用已下载的二进制与 checkout，不再联网（实测 0 次下载） | — |
+
+结论：**MCP 可以完全靠插件跑通；技能会全部落地，但要“全部挂载”必须显式 `skillGroups: ['*']`**；而“接管当前 MATLAB 会话”和“Simulink”这两条，仍然需要官方安装器或上面那一步手动操作。
+
 ## 排错
 
 | 现象 | 原因与处理 |
@@ -159,7 +177,7 @@ pnpm add file:/path/to/dsh-matlab
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 60 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 61 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
