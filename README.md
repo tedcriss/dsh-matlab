@@ -109,7 +109,7 @@ pnpm add file:/path/to/dsh-matlab
 | `autoProvision` | `true` | 缺失时下载二进制、克隆 MATLAB 工具包 checkout |
 | `installRoot` | `~/.matlab/agentic-toolkits` | MathWorks 安装器根目录（只读使用） |
 | `toolkitRoots` | `[]` | 额外/替代的工具包 checkout；给定时优先 |
-| `skillGroups` | `[]`（仅必需组） | 要加载的技能组；留空只加载每个工具包的 `required: true` 组，`['*']` 加载全部组（MATLAB 工具包为 24 组 / 158 个技能） |
+| `skillGroups` | `[]`（全部） | 要加载的技能组；留空或 `['*']` 加载全部组（MATLAB 工具包为 24 组 / 158 个技能），列出组名则只加载这些组 |
 | `extensionFiles` | `[]` | 额外 MCP 工具定义文件（Simulink 工具包的 `tools/tools.json` 会自动带上） |
 | `watchSkills` | `true` | 工具包变更时热更新技能目录 |
 | `probe` / `probeTimeoutMs` | `true` / `20000` | 连接前做一次 MCP 握手探测 |
@@ -125,7 +125,7 @@ pnpm add file:/path/to/dsh-matlab
 
    模型应调用 `mcp__matlab__detect_matlab_toolboxes`。
 
-2. 看技能目录是否出现 `matlab-core` 组里的 6 个技能（如 `matlab-create-live-script`）。
+2. 看技能目录：默认全量（MATLAB 工具包 24 组 / 158 个技能），至少应能看到 `matlab-core` 组里的 6 个（如 `matlab-create-live-script`）。
 
 3. 直接读连接状态：
 
@@ -143,30 +143,34 @@ pnpm add file:/path/to/dsh-matlab
    }
    ```
 
-## 选择要加载的技能
+## 技能组：默认全部，可按需收窄
 
-技能的**选择单位是“组”**（MathWorks 的 `skills-catalog/<group>`），不是单个文件——这与 MathWorks 给 Amp 的 `amp.skills.path` 完全一致。组名来自工具包的 `manifest.yaml`，也就是 `skills-catalog/` 下的目录名。
+技能的**选择单位是“组”**（MathWorks 的 `skills-catalog/<group>`），不是单个文件——这与 MathWorks 给 Amp 的 `amp.skills.path` 完全一致。组名来自工具包的 `manifest.yaml`，也就是 `skills-catalog/` 下的目录名。**默认加载全部组**；想省上下文再按组收窄。
 
 三种写法（都在 profile 的 `cordis.patch.yml` 里覆盖 `matlab-agentic` 这一行）：
 
 ```yaml
-# 1) 默认：只加载必需组（matlab-core，6 个技能）
+# 1) 默认：加载全部组（MATLAB 工具包 24 组 / 158 个技能）
 - id: matlab-agentic
 
-# 2) 按需挑组：只加载列出的组
+# 2) 收窄：只加载列出的组
 - id: matlab-agentic
   config:
     skillGroups: [matlab-core, signal-processing, wireless-communications]
 
-# 3) 全量：24 组 / 158 个技能
+# 3) 等价的显式全量写法
 - id: matlab-agentic
   config:
     skillGroups: ['*']
 ```
 
+全量的代价：技能目录常驻约 **8,000 tokens**（158 条 name + 描述，按 DSH 的 500 字符截断实测）；只留 `[matlab-core, signal-processing]` 时约 1.6k tokens。技能越多，模型挑错技能的概率也越高，所以按领域收窄是省 token 的做法。
+
 写错组名会**直接激活失败**，并在报错里列出所有可用组名（避免“静默少装”）。改完需要在插件页把该插件关掉再打开（或重启 DSH Desktop）。
 
-### 可选组一览（MATLAB 工具包，2026.11.a）
+### 各组一览（MATLAB 工具包，2026.11.a）
+
+默认全部加载；下表用于**收窄时挑选**。`（必需）` 表示 MathWorks 在 `manifest.yaml` 里标记的 `required` 组。
 
 | 组名 | 技能数 | 典型内容 |
 | --- | --- | --- |
@@ -216,7 +220,7 @@ New-Item -ItemType Junction -Path C:\matlab-skills\skills-catalog\matlab-solve-o
     skillGroups: [matlab-create-live-script, matlab-solve-optimization]
 ```
 
-此时“组名”就是技能名，且 `skillGroups` 不能留空（裁剪目录没有 `required` 标记）。链接会被正常跟随（已覆盖测试）。
+此时“组名”就是技能名；由于默认就是“加载全部条目”，`skillGroups` 可以留空——裁剪目录本身就是你的选择清单。链接会被正常跟随（已覆盖测试）。
 
 ### 确认到底加载了什么
 
@@ -235,14 +239,14 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | MATLAB MCP Server 二进制 | ✅ 自动下载官方 Release（19.9 MB，实测 v0.16.0） | 离线/内网：手动下载后设 `mcpServerPath` |
 | 5 个 MCP 工具 + 2 个 `guidelines://` 资源 | ✅ 探测即通过 | — |
 | 技能文件落地 | ✅ `git clone --depth 1` 官方工具包（24 组 / 158 个技能） | 无 `git`：自行 clone 后设 `toolkitRoots` |
-| 技能挂载数量 | ⚠️ 默认只有 `matlab-core` 的 6 个 | `skillGroups: ['*']` 即 24 组 / 158 个（实测） |
+| 技能挂载数量 | ✅ 默认全量：24 组 / 158 个（实测） | 想省 token 就列组名收窄，例如 `[matlab-core, signal-processing]` |
 | 复用你正在用的 MATLAB 会话（`sessionMode: existing`） | ❌ 需要 MATLAB 侧装 add-on | 跑一次 `<DSH_HOME>/matlab/bin/matlab-mcp-server.exe --setup-matlab --matlab-root=<MATLAB根>`，再在 MATLAB 里 `shareMATLABSession()` |
 | Simulink 技能与 `tools/tools.json` 工具扩展 | ❌ 不会自动克隆 Simulink 工具包 | `setupAgenticToolkit("Toolkit","simulink")`，或自行 clone 后设 `toolkitRoots` |
 | 记住你在安装器里选的 MATLAB 版本 | ⚠️ 改为 环境变量 → PATH → 注册表 → 最新安装目录 发现 | 多版本共存时显式设 `matlabRoot` |
 | 遥测默认关闭 | ❌ 默认仍开启 | `disableTelemetry: true` |
 | 二次启动 | ✅ 复用已下载的二进制与 checkout，不再联网（实测 0 次下载） | — |
 
-结论：**MCP 可以完全靠插件跑通；技能会全部落地，但要“全部挂载”必须显式 `skillGroups: ['*']`**；而“接管当前 MATLAB 会话”和“Simulink”这两条，仍然需要官方安装器或上面那一步手动操作。
+结论：**MCP 与技能都能完全靠插件跑通，技能默认全量挂载（24 组 / 158 个）**；而“接管当前 MATLAB 会话”和“Simulink”这两条，仍然需要官方安装器或上面那一步手动操作。
 
 ## 排错
 

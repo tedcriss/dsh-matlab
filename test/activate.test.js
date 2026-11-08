@@ -162,9 +162,13 @@ test('mounts the skill provider and the MCP bridge against MathWorks artifacts',
   const skills = mounts[0].config
   assert.equal(skills.providerName, 'matlab')
   assert.equal(skills.includeDefaultRoots, false)
-  assert.deepEqual(skills.customSkillDirs, [join(toolkit, 'skills-catalog', 'core')])
-  assert.equal(status.skills.length, 1)
-  assert.equal(status.skills[0].name, 'core')
+  // The default selection is every group, so both fixture groups mount.
+  assert.deepEqual(skills.customSkillDirs, [
+    join(toolkit, 'skills-catalog', 'core'),
+    join(toolkit, 'skills-catalog', 'extra'),
+  ])
+  assert.equal(status.skills.length, 2)
+  assert.deepEqual(status.skills.map(group => group.name), ['core', 'extra'])
 
   const bridge = mounts[1].config
   assert.equal(bridge.transport, 'stdio')

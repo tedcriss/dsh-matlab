@@ -5,7 +5,7 @@
 ## 增加了什么
 
 - **工具**：来自 MATLAB MCP Server，注册为 `mcp__matlab__<tool>`——`evaluate_matlab_code`、`run_matlab_file`、`run_matlab_test_file`、`check_matlab_code`、`detect_matlab_toolboxes`，以及两个 `guidelines://` 资源。
-- **技能**：来自 MATLAB Agentic Toolkit，由 `dsh-skill-filesystem` 直接从 `skills-catalog/<group>` 加载。默认只装工具包的必需组（`matlab-core`，6 个技能）；更多组用 `skillGroups` 指定。
+- **技能**：来自 MATLAB Agentic Toolkit，由 `dsh-skill-filesystem` 直接从 `skills-catalog/<group>` 加载。默认全量（MATLAB 工具包 24 组 / 158 个技能）；用 `skillGroups` 列组名可收窄，以节省上下文。
 - **Simulink**：若同时安装了 Simulink Agentic Toolkit，它的技能组与 `tools/tools.json` MCP 扩展也会一起接入。
 
 ## 不做什么
@@ -26,7 +26,7 @@ setupAgenticToolkit("install")
 
 | 设置 | 默认 | 作用 |
 | --- | --- | --- |
-| `skillGroups` | 仅必需组 | 要加载哪些 `skills-catalog` 组 |
+| `skillGroups` | 全部组 | 要加载哪些 `skills-catalog` 组；留空即全部 |
 | `sessionMode` | `auto` | `existing` 复用执行过 `shareMATLABSession()` 的 MATLAB |
 | `matlabRoot` | 自动发现 | 服务启动哪个 MATLAB |
 | `displayMode` | `desktop` | `nodesktop` 不显示 MATLAB 桌面 |

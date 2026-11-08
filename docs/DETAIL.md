@@ -5,7 +5,7 @@ Brings MathWorks' own MATLAB capability surface into DSH without reimplementing 
 ## What it adds
 
 - **Tools** from the MATLAB MCP Server, registered as `mcp__matlab__<tool>`: `evaluate_matlab_code`, `run_matlab_file`, `run_matlab_test_file`, `check_matlab_code`, `detect_matlab_toolboxes`, plus the two `guidelines://` resources.
-- **Skills** from the MATLAB Agentic Toolkit, loaded straight from `skills-catalog/<group>` with `dsh-skill-filesystem`. By default only the toolkit's required group (`matlab-core`, 6 skills) is loaded; add groups with `skillGroups`.
+- **Skills** from the MATLAB Agentic Toolkit, loaded straight from `skills-catalog/<group>` with `dsh-skill-filesystem`. Every group is loaded by default (24 groups, 158 skills for the MATLAB toolkit); list group names in `skillGroups` to load fewer.
 - **Simulink** groups and its `tools/tools.json` MCP extension, when the Simulink Agentic Toolkit is installed alongside.
 
 ## What it does not do
@@ -26,7 +26,7 @@ The plugin discovers that install in `~/.matlab/agentic-toolkits`, reads the MAT
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `skillGroups` | required group only | Which `skills-catalog` groups to load |
+| `skillGroups` | every group | Which `skills-catalog` groups to load; empty loads all |
 | `sessionMode` | `auto` | `existing` reuses a MATLAB that ran `shareMATLABSession()` |
 | `matlabRoot` | discovered | Which MATLAB the server starts |
 | `displayMode` | `desktop` | `nodesktop` runs without the MATLAB desktop |

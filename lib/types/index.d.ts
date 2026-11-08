@@ -49,7 +49,7 @@ export interface ConfigOptions {
   installRoot: string
   /** Toolkit checkouts to read skills from; empty scans the installer layout. */
   toolkitRoots: string[]
-  /** Skill groups to load; empty loads each toolkit's required groups. */
+  /** Skill groups to load; empty loads every group. */
   skillGroups: string[]
   /** Extra MCP tool definition files passed as `--extension-file`. */
   extensionFiles: string[]
@@ -262,7 +262,7 @@ export declare function readToolkit(
 /**
  * Apply the configured group selection.
  * @param toolkits - discovered toolkits.
- * @param requested - configured group names; empty selects each required group.
+ * @param requested - configured group names; empty or `*` selects every group.
  * @returns selected groups and the names that matched nothing.
  */
 export declare function selectSkillGroups(

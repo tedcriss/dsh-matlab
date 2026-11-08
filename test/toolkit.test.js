@@ -120,7 +120,7 @@ test('explicit roots win and unknown explicit roots fail loud', async t => {
   )
 })
 
-test('empty selection loads required groups only', async t => {
+test('empty selection loads every group, including groups the toolkit does not mark required', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'matlab-toolkit-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const root = await makeToolkit(dir, 'toolkit', {
@@ -128,7 +128,7 @@ test('empty selection loads required groups only', async t => {
     groups: [{ name: 'core', required: true }, { name: 'extra' }],
   })
   const toolkits = [await readToolkit(root)]
-  assert.deepEqual(selectSkillGroups(toolkits, []).groups.map(group => group.name), ['core'])
+  assert.deepEqual(selectSkillGroups(toolkits, []).groups.map(group => group.name), ['core', 'extra'])
   assert.deepEqual(selectSkillGroups(toolkits, ['extra']).groups.map(group => group.name), ['extra'])
   assert.deepEqual(selectSkillGroups(toolkits, ['core', 'nope']).unknown, ['nope'])
 })
