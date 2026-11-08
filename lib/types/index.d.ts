@@ -342,11 +342,14 @@ export declare function resolveDshHome(env?: NodeJS.ProcessEnv): string
 
 /**
  * Activate the plugin.
+ *
+ * Cordis validates the value a plugin's activation resolves to and treats every
+ * non-null, non-disposer result as an effect, so this entry point resolves to
+ * `undefined`. Read the status from {@link activate} or the status route.
  * @param ctx - plugin context.
  * @param config - schema-validated configuration.
- * @returns the resolved status.
  */
-export declare function apply(ctx: Context, config: ConfigOptions): Promise<ActivationStatus>
+export declare function apply(ctx: Context, config: ConfigOptions): Promise<void>
 
 /**
  * Activate the binding with replaceable transports.

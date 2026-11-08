@@ -124,6 +124,20 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 插件声明了 schemastery `Config`，其中用户会反复调整的字段标了 `.volatile()`，因此可以直接通过 profile 的 `cordis.patch.yml` 或设置表单修改。自带一个前端页面的收益（一次性配置）低于成本（client bundle、i18n、slot 兼容），且会让插件在“只做连接性”的重心上偏航。诊断信息通过 `/plugin/matlab/status` 提供。
 
+### 4.9 `apply` 必须 resolve 为 `undefined`（真实事故）
+
+首版 `apply` 把状态对象 `return` 了出去，线上表现是：
+
+```
+matlab-agentic: connected; tools appear as mcp__matlab__<tool>
+[error] TypeError: Invalid effect            ← Fiber._reload
+[error] mcp-client(matlab): tool registration failed ... cannot create effect on inactive context
+```
+
+Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 disposer、null/undefined 算无副作用、thenable 会继续等待、可迭代对象逐个收集 disposer，**其余一律 `TypeError: Invalid effect`** 并卸载该 fiber。插件“连接成功”之后再抛错，子插件随之失去活跃上下文，工具一个都没注册上。
+
+因此契约是：**`apply` 只做副作用，不返回值**。诊断状态由内部 `activate()` 返回（供测试与状态路由使用），`apply` 丢弃它。这条约束已由 `test/cordis-contract.integration.test.js` 用真实 Cordis 覆盖，并保留了一个反向对照用例（返回值的插件必须被 `Invalid effect` 拒绝），防止测试本身失真。
+
 ## 5. 失败模式
 
 每条失败都有确定的归属和可读的后果：
@@ -137,6 +151,7 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 | 探测失败 | 告警；`failOnStartupError` 为真则失败 | `status.probe.error` + stderr |
 | MCP 桥连接失败 | 记录 `phase: "failed"` 与原因；不中断 profile | 错误日志 + 状态路由 |
 | 技能注册服务不存在 | 告警跳过技能，工具照常 | 日志说明 profile 未加载 skills |
+| `apply` 返回了非 `undefined` 值 | **fiber 卸载**，`TypeError: Invalid effect` | 见 §4.9；已修复并有回归测试 |
 
 “配置错误立刻失败、运行时依赖缺失降级继续”这条线是刻意划的：前者用户能立刻修，后者可能只是暂时没装。
 

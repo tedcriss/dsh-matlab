@@ -45,10 +45,10 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/schemastery": "*",
     "@deepseek-ai/dsh-mcp-client": "*",
     "@deepseek-ai/dsh-skill": "*",
-    "@deepseek-ai/dsh-skill-filesystem": "*"
+    "@deepseek-ai/dsh-skill-filesystem": "*",
+    "@deepseek-ai/schemastery": "*"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-mcp-client": {
@@ -60,5 +60,8 @@
   },
   "engines": {
     "node": ">=22.6"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0"
   }
 }

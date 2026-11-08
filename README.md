@@ -158,11 +158,13 @@ pnpm add file:/path/to/dsh-matlab
 ## 开发
 
 ```bash
-node --test          # 56 个用例；无构建步骤
+pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
+node --test          # 60 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
 - 与 MATLAB 有关的用例是**真机集成**：设置了 `MATLAB_MCP_SERVER`，或 `~/.matlab/agentic-toolkits/bin/` 存在时，真的会拉起 MathWorks 服务做一次 MCP 握手，并逐个校验 158 个 `SKILL.md` 是否符合 DSH 的技能 frontmatter 规则；否则自动跳过；
+- `test/cordis-contract.integration.test.js` 用**真实 Cordis** 激活插件（只替换传输层），因为插件 `apply` 的返回值会被 Cordis 当作 effect 校验——这条契约出错时线上表现是 `TypeError: Invalid effect`；
 - 目录说明：
   - `lib/activate.js` — 绑定逻辑（发现 → 探测 → 挂载两个传输层）
   - `lib/toolkit.js` + `lib/yaml-mini.js` — 读 MathWorks `manifest.yaml`（技能组、`mcp-server-extensions`）

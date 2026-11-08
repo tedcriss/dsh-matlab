@@ -1,0 +1,7 @@
+# Development installs only. The published plugin has no runtime dependencies:
+# the DSH runtime supplies every `@deepseek-ai/*` peer through its installation
+# scope, so peers are never installed here.
+packages:
+  - .
+
+autoInstallPeers: false

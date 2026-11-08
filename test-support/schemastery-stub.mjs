@@ -9,9 +9,15 @@
  */
 
 function chainable(type) {
-  // Real schemastery schemas are callable functions carrying chain methods.
+  // Real schemastery schemas are callable functions carrying chain methods, and
+  // they implement Standard Schema (`~standard.validate`), which Cordis uses.
   const schema = data => (data !== null && typeof data === 'object' ? { ...data } : data)
   schema.type = type
+  schema['~standard'] = {
+    version: 1,
+    vendor: 'dsh-plugin-matlab-test-stub',
+    validate: value => ({ value }),
+  }
   for (const method of ['default', 'description', 'volatile', 'pattern', 'min', 'max', 'required']) {
     schema[method] = value => {
       schema[`_${method}`] = value
