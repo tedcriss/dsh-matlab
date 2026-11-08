@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, symlink, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -147,4 +147,26 @@ test('a star selects every group, including one toolkit missing from the install
   // A star plus a name does not duplicate the named group.
   assert.equal(selectSkillGroups(toolkits, ['*', 'extra']).groups.length, 2)
   assert.deepEqual(selectSkillGroups(toolkits, ['*', 'nope']).unknown, ['nope'])
+})
+
+test('follows a symlinked group folder instead of dropping it', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-toolkit-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const real = await makeToolkit(dir, 'real', {
+    groups: [{ name: 'linked-group', required: true }],
+  })
+  const root = join(dir, 'linked')
+  await mkdir(join(root, 'skills-catalog'), { recursive: true })
+  await symlink(join(real, 'skills-catalog', 'linked-group'), join(root, 'skills-catalog', 'linked-group'), 'junction')
+  const toolkit = await readToolkit(root)
+  assert.deepEqual(toolkit.groups.map(group => group.name), ['linked-group'])
+  assert.equal(await countSkills(toolkit.groups[0].path), 1)
+})
+
+test('a single skill linked as a root counts as one skill, not zero', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-toolkit-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const real = await makeToolkit(dir, 'real', { groups: [{ name: 'core', required: true }] })
+  const skill = join(real, 'skills-catalog', 'core', 'skill-a')
+  assert.equal(await countSkills(skill), 1)
 })

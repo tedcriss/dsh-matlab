@@ -143,6 +143,89 @@ pnpm add file:/path/to/dsh-matlab
    }
    ```
 
+## 选择要加载的技能
+
+技能的**选择单位是“组”**（MathWorks 的 `skills-catalog/<group>`），不是单个文件——这与 MathWorks 给 Amp 的 `amp.skills.path` 完全一致。组名来自工具包的 `manifest.yaml`，也就是 `skills-catalog/` 下的目录名。
+
+三种写法（都在 profile 的 `cordis.patch.yml` 里覆盖 `matlab-agentic` 这一行）：
+
+```yaml
+# 1) 默认：只加载必需组（matlab-core，6 个技能）
+- id: matlab-agentic
+
+# 2) 按需挑组：只加载列出的组
+- id: matlab-agentic
+  config:
+    skillGroups: [matlab-core, signal-processing, wireless-communications]
+
+# 3) 全量：24 组 / 158 个技能
+- id: matlab-agentic
+  config:
+    skillGroups: ['*']
+```
+
+写错组名会**直接激活失败**，并在报错里列出所有可用组名（避免“静默少装”）。改完需要在插件页把该插件关掉再打开（或重启 DSH Desktop）。
+
+### 可选组一览（MATLAB 工具包，2026.11.a）
+
+| 组名 | 技能数 | 典型内容 |
+| --- | --- | --- |
+| `matlab-core`（必需） | 6 | 写/调试/审阅代码、Live Script、查文档、装产品 |
+| `rf-and-mixed-signal` | 21 | 天线、PCB、RF/AMS/SerDes 建模 |
+| `automotive` | 13 | RoadRunner 场景、驾驶数据、SUMO 协同仿真 |
+| `test-and-measurement` | 13 | DAQ、相机、Arduino、OPC UA、车载网络 |
+| `signal-processing` | 12 | 滤波器设计、频谱/时频分析、音频 |
+| `matlab-software-development` | 11 | 测试、性能与内存优化、打包 toolbox |
+| `wireless-communications` | 11 | 5G/WLAN/BLE/GNSS 波形、USRP |
+| `ai-and-statistics` | 10 | 训练网络、曲线拟合、可解释性、嵌入式 AI |
+| `image-processing-and-computer-vision` | 10 | 图像/体数据/点云、OCR、视觉检测 |
+| `robotics-and-autonomous-systems` | 6 | 运动规划、MAVLink、惯导融合、GNSS |
+| `code-generation` | 5 | 生成 C/GPU 代码、定点、部署 |
+| `parallel-computing` | 5 | parfor 诊断、集群、GPU、线程池 |
+| `computational-finance` | 4 | 组合优化、定价、Datafeed、Excel 链接 |
+| `matlab-data-import-and-analysis` | 4 | 导入导出、表格分析、大数据选型 |
+| `radar` | 4 | 雷达设计、波形、检测仿真 |
+| `reporting-and-database-access` | 4 | 报告生成、Database/DuckDB/Databricks |
+| `computational-biology` | 3 | SimBiology 建模/拟合/仿真 |
+| `control-systems` | 3 | 系统辨识、旋转机械/电池特征 |
+| `math-and-optimization` | 3 | 优化、PDE、符号计算 |
+| `matlab-app-building` | 3 | App、图表、主题 |
+| `matlab-external-language-interfaces` | 3 | 调 Python/Java、MEX 互操作复数 API |
+| `aerospace` | 2 | 坐标转换、大气/环境计算 |
+| `cloud-solutions` | 1 | MATLAB Drive 共享 |
+| `matlab-programming` | 1 | 函数参数校验 |
+
+Simulink 工具包安装后会出现它自己的组（`model-based-design-core` 等 12 组），同样可以按名字挑选。
+
+### 如果确实要“按单个技能”挑
+
+DSH 的 filesystem provider 以目录为根（`<root>/<name>/SKILL.md`），所以单技能选择的做法是**自建一个裁剪目录**：里面用软链/目录联接指向想要的技能，再让插件把它当作工具包根。
+
+```powershell
+# 例：只要 Live Script 和优化这两个技能
+$src = "$env:USERPROFILE\.matlab\agentic-toolkits\matlab\skills-catalog"
+mkdir C:\matlab-skills\skills-catalog
+New-Item -ItemType Junction -Path C:\matlab-skills\skills-catalog\matlab-create-live-script -Target "$src\matlab-core\matlab-create-live-script"
+New-Item -ItemType Junction -Path C:\matlab-skills\skills-catalog\matlab-solve-optimization -Target "$src\math-and-optimization\matlab-solve-optimization"
+```
+
+```yaml
+- id: matlab-agentic
+  config:
+    toolkitRoots: ['C:\matlab-skills']
+    skillGroups: [matlab-create-live-script, matlab-solve-optimization]
+```
+
+此时“组名”就是技能名，且 `skillGroups` 不能留空（裁剪目录没有 `required` 标记）。链接会被正常跟随（已覆盖测试）。
+
+### 确认到底加载了什么
+
+```bash
+curl http://127.0.0.1:<port>/plugin/matlab/status
+```
+
+`skills` 数组会逐个列出 `{ name, path, skills }`，例如 `{"name":"matlab-core","skills":6}`；全量选择时应为 24 项、合计 158。
+
 ## 只用本插件、不跑官方安装器时能得到什么
 
 插件本身就能完成“获取 + 接线”，但官方安装器仍负责三件它不替代的事。实测（全新 `DSH_HOME`、空 install root、无任何 `~/.matlab` 状态）首启耗时 **约 14 秒**：
@@ -177,7 +260,7 @@ pnpm add file:/path/to/dsh-matlab
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 61 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 63 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；

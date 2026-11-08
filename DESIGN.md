@@ -104,7 +104,9 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 官方安装器默认勾选全部 24 组（用户可改）。把 158 个技能的目录一次性塞进上下文，会显著增加每次请求的 token 并降低技能触发准确率——MathWorks 自己在文档里反复提醒“只装需要的”。所以插件默认取 `matlab-core`（每组 `required: true`），其余组由用户显式列出；`skillGroups: ['*']` 是“我就要全部”的显式逃生口，不改变默认值。这是“尊重厂商建议”而不是“尊重厂商默认勾选”。
 
-如果本机没有跑过官方安装器，插件自己会 `git clone --depth 1` 拿到完整工具包（24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在**默认挂载多少**。真正需要安装器或一步手动操作才能得到的能力有三项：`sessionMode: existing` 所需的 MATLAB add-on（`matlab-mcp-server --setup-matlab`）、Simulink 工具包，以及安装器记录下来的 MATLAB 版本偏好。
+如果本机没有跑过官方安装器，插件自己会 `git clone --depth 1` 拿到完整工具包（24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在**默认挂载多少**。
+
+选择单位是“组”，因为 MathWorks 的布局是 `skills-catalog/<group>/<skill>/SKILL.md`，而 DSH 的 provider 以目录为根——只有把组目录当根才能同时满足两者，也正好保留了“组”这个厂商给出的按需加载单位。细到单个技能时，插件支持自建裁剪目录（`skills-catalog/<技能名>` 用软链指向真实技能），此时技能名就是组名；读取器必须跟随符号链接与目录联接，否则 Windows 的 junction 会被 `Dirent.isDirectory()` 判为 false 而静默丢弃。真正需要安装器或一步手动操作才能得到的能力有三项：`sessionMode: existing` 所需的 MATLAB add-on（`matlab-mcp-server --setup-matlab`）、Simulink 工具包，以及安装器记录下来的 MATLAB 版本偏好。
 
 ### 4.4 读安装器 `config.json`，作为 MATLAB 版本的首选事实来源
 
