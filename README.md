@@ -157,7 +157,7 @@ pnpm add file:/path/to/dsh-matlab
 ## 开发
 
 ```bash
-node --test          # 52 个用例；无构建步骤
+node --test          # 59 个用例；无构建步骤
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
