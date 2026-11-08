@@ -163,7 +163,9 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 2. **真机发现**：从 `~/.matlab/agentic-toolkits/config.json` 取到 `R2023b`，从同目录取到二进制与含 24 组的工具包 checkout；
 3. **绑定正确**：默认选中 `matlab-core`（6 个技能），技能根为该组目录；MCP 参数含 `--matlab-session-mode=auto --matlab-root=… --matlab-display-mode=desktop --log-folder=…`；
 4. **规则正确**：`existing` 模式自动丢弃 `--matlab-root` / `--matlab-display-mode` / `--initial-working-folder` 并给出警告；
-5. **失败可读**：未知技能组、缺失二进制、探测失败、桥连接失败各自有不同的、可操作的报告。
+5. **失败可读**：未知技能组、缺失二进制、探测失败、桥连接失败各自有不同的、可操作的报告；
+6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
+7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
 
 ## 9. 已知限制与后续方向
 
