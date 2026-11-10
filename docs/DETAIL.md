@@ -20,7 +20,7 @@ MATLAB R2021a or later, the MATLAB MCP Server binary, and a MATLAB Agentic Toolk
 setupAgenticToolkit("install")
 ```
 
-The plugin discovers that install in `~/.matlab/agentic-toolkits`, reads the MATLAB version you chose there, and reuses the binary it placed. With no installation it downloads the binary and clones the toolkit itself.
+The plugin discovers that install in `~/.matlab/agentic-toolkits`, reads the MATLAB version you chose there, and reuses the binary it placed. With no installation it downloads the binary and clones the toolkit itself — in the background, because DSH Desktop abandons a host start that has not finished within 60 seconds; `status.phase` is `provisioning` until the fetch lands and mounts.
 
 ## Settings worth knowing
 
@@ -31,9 +31,13 @@ The plugin discovers that install in `~/.matlab/agentic-toolkits`, reads the MAT
 | `matlabRoot` | discovered | Which MATLAB the server starts |
 | `displayMode` | `desktop` | `nodesktop` runs without the MATLAB desktop |
 | `toolCallTimeoutMs` | 600000 | Simulations and test suites exceed the DSH default |
+| `githubProxy` | follows DSH | HTTPS GitHub acceleration prefix; empty reuses DSH's own setting (`DSHM_GITHUB_PROXY` or the market's custom prefix) |
+| `downloadRegion` | `auto` | `china` uses the built-in accelerated routes, `global` goes direct; `auto` follows DSH's market |
+
+On a network where github.com is slow, the first start reuses the acceleration DSH already configured instead of downloading direct: the binary and the toolkit clone both try `gh-proxy.com`, then `ghfast.top`, then the origin. Every route is bounded, so a dead mirror costs seconds rather than the whole start.
 
 ## Diagnosis
 
-`GET /plugin/matlab/status` reports the resolved MATLAB root, the binary and its version, the probe result (tool and resource names), the loaded skill groups with skill counts, and the warnings raised during activation.
+`GET /plugin/matlab/status` reports the resolved MATLAB root, the binary and its version, the probe result (tool and resource names), the loaded skill groups with skill counts, the GitHub acceleration in force (`github.region` / `github.routes` / `server.route`), and the warnings raised during activation.
 
 Full reference: [README](../README.md). Design rationale: [DESIGN](../DESIGN.md).

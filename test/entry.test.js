@@ -91,8 +91,10 @@ test('declares the documented configuration fields', () => {
     'autoProvision',
     'disableTelemetry',
     'displayMode',
+    'downloadRegion',
     'extensionFiles',
     'failOnStartupError',
+    'githubProxy',
     'initialWorkingFolder',
     'initializeMatlabOnStartup',
     'installRoot',
@@ -100,6 +102,8 @@ test('declares the documented configuration fields', () => {
     'mcpServerPath',
     'probe',
     'probeTimeoutMs',
+    'provisionTimeoutMs',
+    'provisionWaitMs',
     'serverName',
     'sessionMode',
     'skillGroups',
@@ -120,6 +124,8 @@ test('re-exports the seams documented for integrators', () => {
     'discoverToolkits',
     'installerMatlabRoot',
     'installerServerVersion',
+    'looksLikeExecutable',
+    'normalizeGithubProxy',
     'parseMcpServerExtensions',
     'parseSkillGroups',
     'probeMcpServer',
@@ -127,9 +133,12 @@ test('re-exports the seams documented for integrators', () => {
     'readToolkit',
     'releaseRank',
     'resolveDshHome',
+    'resolveGithubAcceleration',
     'resolveOptions',
+    'routesFor',
     'selectSkillGroups',
     'serverEnvironment',
+    'throughProxy',
   ]) {
     assert.equal(typeof plugin[name], 'function', `missing export ${name}`)
   }
@@ -150,7 +159,7 @@ test('apply still rejects when activation fails and failOnStartupError is set', 
   await assert.rejects(
     () => plugin.apply(ctx, plugin.Config({ ...config, failOnStartupError: true }), {
       ...overrides,
-      ensureMcpServer: async () => {
+      loadMcpClient: async () => {
         throw new Error('no server binary')
       },
     }),

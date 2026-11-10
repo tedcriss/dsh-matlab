@@ -16,6 +16,9 @@ function baseConfig(overrides = {}) {
     disableTelemetry: false,
     mcpServerPath: '',
     autoProvision: true,
+    githubProxy: '',
+    downloadRegion: 'auto',
+    provisionTimeoutMs: 300_000,
     installRoot: '',
     toolkitRoots: [],
     skillGroups: [],
@@ -72,6 +75,25 @@ test('unwraps volatile fields instead of ignoring the live value', () => {
 
 test('rejects a duplicated group name', () => {
   assert.throws(() => resolveOptions(baseConfig({ skillGroups: ['core', 'core'] })), /more than once/u)
+})
+
+test('normalizes a githubProxy prefix and rejects one it cannot use', () => {
+  assert.equal(resolveOptions(baseConfig()).githubProxy, undefined)
+  assert.equal(
+    resolveOptions(baseConfig({ githubProxy: ' https://gh-proxy.com/ ' })).githubProxy,
+    'https://gh-proxy.com',
+  )
+  // A configured prefix is a statement the plugin can check, so a broken one
+  // must fail activation instead of quietly downloading direct.
+  for (const broken of ['http://gh-proxy.com', 'ftp://mirror.example', 'https://user:pw@mirror.example', 'https://mirror.example/?a=1']) {
+    assert.throws(() => resolveOptions(baseConfig({ githubProxy: broken })), /githubProxy must be an HTTPS prefix/u)
+  }
+})
+
+test('bounds a first-time transfer with a positive budget', () => {
+  assert.equal(resolveOptions(baseConfig({ provisionTimeoutMs: undefined })).provisionTimeoutMs, 300_000)
+  assert.equal(resolveOptions(baseConfig({ provisionTimeoutMs: 0 })).provisionTimeoutMs, 300_000)
+  assert.equal(resolveOptions(baseConfig({ provisionTimeoutMs: 90_000 })).provisionTimeoutMs, 90_000)
 })
 
 test('keeps every default the schema supplies', () => {

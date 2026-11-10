@@ -32,6 +32,10 @@ function baseConfig(overrides = {}) {
     disableTelemetry: false,
     mcpServerPath: '',
     autoProvision: false,
+    githubProxy: '',
+    downloadRegion: 'auto',
+    provisionTimeoutMs: 300_000,
+    provisionWaitMs: 0,
     installRoot: '',
     toolkitRoots: [],
     skillGroups: [],
@@ -314,4 +318,144 @@ test('rejects a duplicated group name before mounting anything', () => {
     () => resolveOptions(baseConfig({ skillGroups: ['core', 'core'] })),
     /lists core more than once/u,
   )
+})
+
+/** Keep the developer's own DSH acceleration settings out of the assertion. */
+function isolatedGithubEnv(t) {
+  for (const name of ['DSH_PROFILE', 'DSH_PROFILE_DIR', 'DSHM_GITHUB_PROXY']) {
+    const previous = process.env[name]
+    delete process.env[name]
+    t.after(() => {
+      if (previous === undefined) delete process.env[name]
+      else process.env[name] = previous
+    })
+  }
+}
+
+test('provisions over the configured GitHub acceleration and reports the route', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx } = fakeContext()
+  let requested
+
+  const status = await activate(ctx, baseConfig({ ...isolated(dir),
+    toolkitRoots: [toolkit],
+    autoProvision: true,
+    githubProxy: 'https://gh-proxy.com',
+    provisionWaitMs: 2_000,
+  }), {
+    ...seams(binary),
+    ensureMcpServer: async options => {
+      requested = options
+      return { path: binary, source: 'download', downloaded: true, route: 'https://gh-proxy.com' }
+    },
+  })
+
+  // The download and the clone share one chain, direct route last: a mirror that
+  // dies must degrade to slow, never to a profile that cannot start.
+  assert.deepEqual(requested.routes, ['https://gh-proxy.com', null])
+  assert.equal(requested.provisionTimeoutMs, 300_000)
+  assert.deepEqual(status.github, {
+    region: 'global',
+    regionSource: 'default',
+    proxy: 'https://gh-proxy.com',
+    proxySource: 'config',
+    routes: ['gh-proxy.com', 'direct'],
+  })
+  assert.equal(status.server.downloaded, true)
+  assert.equal(status.server.route, 'gh-proxy.com')
+})
+
+test('a missing toolkit is cloned over the same acceleration routes', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx } = fakeContext()
+  let cloned
+
+  const status = await activate(ctx, baseConfig({ ...isolated(dir),
+    autoProvision: true,
+    mcpServerPath: binary,
+    githubProxy: 'https://gh-proxy.com/',
+    provisionTimeoutMs: 120_000,
+    provisionWaitMs: 2_000,
+  }), {
+    ...seams(binary),
+    cloneToolkit: async options => {
+      cloned = options
+      return { root: toolkit, route: 'https://gh-proxy.com' }
+    },
+  })
+
+  assert.ok(cloned, 'cloneToolkit must run when no toolkit exists')
+  assert.deepEqual(cloned.routes, ['https://gh-proxy.com', null])
+  assert.equal(cloned.timeoutMs, 120_000)
+  assert.equal(status.skills.length, 2)
+  assert.deepEqual(status.github.routes, ['gh-proxy.com', 'direct'])
+})
+
+test('a first-time fetch never holds activation, because DSH abandons a slow start', async t => {  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const { ctx } = fakeContext()
+  // A fetch that never finishes stands in for a mirror that is merely slow: the
+  // 60-second host-startup limit must be somebody else's problem, not the boot's.
+  const never = new Promise(() => {})
+
+  const started = Date.now()
+  const status = await activate(ctx, baseConfig({ ...isolated(dir), autoProvision: true }), {
+    ...seams(binary),
+    cloneToolkit: () => never,
+  })
+
+  assert.ok(Date.now() - started < 5_000, `activation took ${String(Date.now() - started)} ms`)
+  assert.equal(status.phase, 'provisioning')
+  assert.equal(status.skills.length, 0)
+  assert.equal(status.server, undefined)
+})
+
+test('toolkit extension files reach the first connection even when the toolkit is fetched in the background', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir, ['core'])
+  await writeFile(join(toolkit, 'manifest.yaml'), `display-name: "Example Agentic Toolkit"
+skill-groups:
+  - name: core
+    display-name: "Core"
+    path: skills-catalog/core
+    required: true
+mcp-server-extensions:
+  - path: tools/tools.json
+`)
+  const { ctx, mounts } = fakeContext()
+
+  const status = await activate(ctx, baseConfig({ ...isolated(dir),
+    autoProvision: true,
+    mcpServerPath: binary,
+    provisionWaitMs: 2_000,
+  }), {
+    ...seams(binary),
+    cloneToolkit: async () => ({ root: toolkit, route: null }),
+  })
+
+  // Binding tools before the clone would drop the toolkit's extensions from the
+  // one and only connection; the background task must clone first.
+  assert.equal(status.phase, 'ready')
+  assert.ok(mounts[1].config.args.includes(`--extension-file=${join(toolkit, 'tools', 'tools.json')}`))
 })

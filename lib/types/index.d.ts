@@ -45,6 +45,14 @@ export interface ConfigOptions {
   mcpServerPath: string
   /** Download the server binary and clone the toolkit when absent. */
   autoProvision: boolean
+  /** HTTPS GitHub acceleration prefix, for example `https://gh-proxy.com`; empty follows DSH's own setting. */
+  githubProxy: string
+  /** Download region; `auto` follows DSH's market setting. */
+  downloadRegion: 'auto' | 'china' | 'global'
+  /** Budget for one first-time transfer (binary download or toolkit clone) in milliseconds. */
+  provisionTimeoutMs: number
+  /** How long activation may wait for a first-time fetch; 0 fetches in the background. */
+  provisionWaitMs: number
   /** MathWorks Agentic Toolkit install root; empty uses `~/.matlab/agentic-toolkits`. */
   installRoot: string
   /** Toolkit checkouts to read skills from; empty scans the installer layout. */
@@ -110,7 +118,7 @@ export interface InstallerConfig {
 /** Resolved connectivity state served by `GET /plugin/matlab/status`. */
 export interface ActivationStatus {
   readonly plugin: 'dsh-plugin-matlab'
-  readonly phase: 'starting' | 'skills' | 'tools' | 'ready' | 'failed'
+  readonly phase: 'starting' | 'skills' | 'tools' | 'provisioning' | 'ready' | 'failed'
   readonly installer?: {
     readonly root: string
     readonly configFound: boolean
@@ -123,6 +131,16 @@ export interface ActivationStatus {
     readonly source: string
     readonly version?: string
     readonly downloaded: boolean
+    /** Route the download came through, when this plugin downloaded it. */
+    readonly route?: string
+  }
+  /** The GitHub acceleration this activation resolved and where it came from. */
+  readonly github?: {
+    readonly region: 'china' | 'global'
+    readonly regionSource: 'config' | 'market' | 'default'
+    readonly proxy: string | null
+    readonly proxySource: 'config' | 'environment' | 'market' | 'none'
+    readonly routes: readonly string[]
   }
   readonly toolkit?: readonly {
     readonly root: string
@@ -237,6 +255,61 @@ export declare function assetCandidates(platform: string, arch: string): string[
 export declare function assetUrl(asset: string, tag?: string): string
 
 /**
+ * Whether a payload starts like a program this platform can run.
+ * @param platform - `process.platform` value.
+ * @param head - first bytes of the response.
+ * @returns true when the payload is plausible for this platform.
+ */
+export declare function looksLikeExecutable(platform: string, head: Uint8Array | undefined): boolean
+
+/** Public prefixes DSH's market ships for its China download region, best first. */
+export declare const CHINA_GITHUB_ROUTES: readonly string[]
+
+/**
+ * Normalize one HTTPS acceleration prefix.
+ * @param value - candidate prefix.
+ * @returns the prefix without a trailing slash, or `null` when unusable.
+ */
+export declare function normalizeGithubProxy(value: unknown): string | null
+
+/**
+ * Wrap a GitHub URL in a prefix route.
+ * @param route - prefix, or `null` to go direct.
+ * @param url - absolute URL on a github.com-family host.
+ * @returns the routed URL.
+ */
+export declare function throughProxy(route: string | null, url: string): string
+
+/**
+ * Build the ordered route chain for one region and prefix.
+ * @param options - resolved region and custom prefix.
+ * @returns ordered routes ending in the direct one.
+ */
+export declare function routesFor(options: {
+  region: 'china' | 'global'
+  proxy: string | null
+}): (string | null)[]
+
+/**
+ * Resolve the acceleration this process should use.
+ * @param options - configured statement, DSH facts, and seams.
+ * @returns the effective region, prefix, where each came from, and the routes.
+ */
+export declare function resolveGithubAcceleration(options?: {
+  githubProxy?: string | null
+  downloadRegion?: 'auto' | 'china' | 'global'
+  profileDirectory?: string
+  env?: NodeJS.ProcessEnv
+  log?: (entry: { level: string; message: string }) => void
+}): Promise<{
+  region: 'china' | 'global'
+  regionSource: 'config' | 'market' | 'default'
+  proxy: string | null
+  source: 'config' | 'environment' | 'market' | 'none'
+  routes: (string | null)[]
+}>
+
+/**
  * Discover Agentic Toolkit checkouts.
  * @param options - sources in priority order.
  * @returns unique toolkit records.
@@ -323,6 +396,10 @@ export declare function resolveOptions(config: ConfigOptions): {
   disableTelemetry: boolean
   mcpServerPath?: string
   autoProvision: boolean
+  githubProxy?: string
+  downloadRegion: 'auto' | 'china' | 'global'
+  provisionTimeoutMs: number
+  provisionWaitMs: number
   installRoot?: string
   toolkitRoots: string[]
   skillGroups: string[]

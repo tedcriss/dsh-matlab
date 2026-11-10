@@ -130,9 +130,13 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 探测的语义是“这个命令 + 这些参数能不能完成 initialize，并暴露出哪些工具”。它不启动 MATLAB（`initialize-matlab-on-startup` 默认 false），耗时约 0.2–1 秒，失败时能给出 stderr 尾部。即使探测失败，默认仍会挂载 MCP 桥（`failOnStartupError: false`），让“能连但探测协议不兼容”不阻断使用；要严格失败则打开该开关。
 
-### 4.7 缺失时自动准备，但只在必要时
+### 4.7 缺失时自动准备，但绝不占用启动
 
 `autoProvision: true` 时：二进制缺失 → 从 GitHub Release 下载（先试现名 `matlab-mcp-server-<os>-<arch>`，再试旧名 `matlab-mcp-core-server-<matlabarch>`）；工具包缺失 → `git clone --depth 1` 到插件数据目录（`HTTPS_PROXY` 会翻译成 `git -c http.proxy`）。已存在任何官方产物时绝不下载，避免留下第二份、可能过期的副本。
+
+关键在于这两件事**不在激活路径上等**。DSH Desktop 会在宿主机 60 秒内没有启动完成时直接判失败（`Host startup exceeded 60 seconds`，见 2.0.22-next 的 `desktop-runtime`），而首次获取是 19.9 MB 下载加一次仓库克隆——加速后仍可能合计 1～2 分钟（本机实测 71.6 秒）。因此激活只做本地发现：已有产物就地挂载（毫秒级），缺失的那一半记进 `plan`，交由后台任务 `provision()` 完成后再挂载，`status.phase` 在期间为 `provisioning`。`provisionWaitMs`（默认 0）允许 profile 选择“最多等这么久”，但默认不赌网络。
+
+代价说清楚：首次启动后的头一两分钟里，模型还看不到 MATLAB 工具与技能（日志与状态路由会明说“正在后台获取”），第二次启动则完全不再联网。这个取舍是正确的，因为另一种结果——宿主机起不来——连“稍后可用”都换不到。
 
 ### 4.8 不做设置页面
 
@@ -152,6 +156,35 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 因此契约是：**`apply` 只做副作用，不返回值**。诊断状态由内部 `activate()` 返回（供测试与状态路由使用），`apply` 丢弃它。这条约束已由 `test/cordis-contract.integration.test.js` 用真实 Cordis 覆盖，并保留了一个反向对照用例（返回值的插件必须被 `Invalid effect` 拒绝），防止测试本身失真。
 
+### 4.10 沿用 DSH 的 GitHub 加速，且首次获取不阻塞启动
+
+首版把“下载慢”当成网络环境问题推给用户（README 只写“设 `HTTPS_PROXY`”），结果是在中国大陆的机器上，首次启动要在 DSH 启动路径里直连 GitHub 下载 19.9 MB 的二进制。实测（2026-11-10，同一分钟）：**直连 7 KB/s，经 DSH 市场用的公共前缀 250 KB/s**，直连需要几十分钟——这一次的直接后果有日志为证：
+
+```text
+14:45:24.798 matlab-agentic: cloning https://github.com/matlab/matlab-agentic-toolkit.git
+14:46:22.286 [desktop] host.start.failed durationMs 60019 {"message":"Host startup exceeded 60 seconds"}
+```
+
+所以这里有两件事，缺一不可：
+
+1. **走 DSH 已经选好的加速线路**（快）；
+2. **首次获取放到后台**（不占启动）——因为加速也保证不了 60 秒内完成，实测加速后仍需 71.6 秒。
+
+“给插件加一个代理服务器”是能工作的方案，但它会引入第二个事实来源：DSH 已经在**设置 → 插件 → 插件配置 → GitHub 加速**里管理区域、自定义前缀与回退顺序（`dshmarket` 的 `lib/regions.js`），运维还能用 `DSHM_GITHUB_PROXY` 覆盖。插件若自己存一份代理地址，用户就得在两处保持一致，而任何一处失效都会变成“插件坏了”。所以这里**不新增代理，只消费 DSH 已经做出的决定**，优先级从最具体到最一般：
+
+1. 本插件的 `githubProxy`（profile 里能直接写，纯 CLI 或没有市场的 profile 也有说法）；
+2. `DSHM_GITHUB_PROXY`（运维的环境覆盖，与 DSH 市场同名的变量）；
+3. `<profile>/.dsh-market/state.json` 的 `githubProxy` 与 `region`——即市场设置里那份；profile 目录取自 `profileContext`（市场读的是同一个服务），其次 `DSH_PROFILE_DIR`/`DSH_PROFILE`，最后扫 `profiles/` 下最新的市场状态；
+4. 区域缺省 `global`，也就是直连。
+
+`githubProxy` 只接受 `https://` 前缀、不含凭据、查询串与锚点：下载下来的是随后要执行的程序，明文线路等于允许中间人替换它。环境变量里给错值时只告警并忽略（那是运维的设置）；配置里给错值则激活失败，并给出可用的写法——遵循 §5 的“配置错误立刻失败，运行时依赖缺失降级继续”。
+
+线路的用法与公共反代一致：完整目标 URL 作为路径（`{prefix}/{url}`）。下载与克隆共享一张表，顺序是**加速线路在前、直连收尾**。这里与 DSH 市场的 git 线路（直连在前）刻意不同：市场只用 git 线路读 ref 广告，而 `git clone` 要搬整个仓库包，慢的正是这一段；直连保底仍在，镜像整体失效时退化为“慢”而不是“启动不了”。
+
+有界同样重要：`provisionTimeoutMs`（默认 300 秒）是单次首次准备的总预算，每条线路再加“无响应头 20 秒 / 无数据 30 秒即中止”的看门狗，`git clone` 另设 `http.lowSpeedLimit=1024` / `lowSpeedTime=30` 让 git 自己放弃塌陷的传输。这样一条死线路最多花掉几十秒；全部线路失败时后台任务把失败写进 `status.error` 与日志，下一次启动重新发现、重新尝试，而不是把启动挂住。
+
+成功路径用实测确认过（同一台中国网络机器、全新 `DSH_HOME`、空安装根）：激活 **0.10 秒**返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，工具包经 `gh-proxy.com` 克隆后挂上 24 组 / 158 个技能，二进制 19,905,376 字节经 `gh-proxy.com` 装好（`--version` 为 `v0.16.0`），真实 MCP 握手探测到 5 个工具 / 2 个资源，71.6 秒后 `phase: ready`。状态路由同时给出 `github.{region,proxy,routes,source}` 与 `server.route`，所以“它到底走了哪条线路”不需要靠猜。
+
 ## 5. 失败模式
 
 每条失败都有确定的归属和可读的后果：
@@ -161,7 +194,13 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 | 找不到工具包 | `autoProvision` 为真则克隆，否则告警继续 | 日志 + `status.toolkit: []`；工具仍可用 |
 | `skillGroups` 里有未知组 | **激活失败**（配置错误自包含，尽早失败） | 报错里列出所有可用组名 |
 | 找不到 MATLAB | 告警继续，让 MCP 服务自己报错 | `status.matlab: undefined` + 服务 stderr |
-| 二进制缺失且无法下载 | **激活失败**，报错给出三条可行建议 | 明确的下一步 |
+| 二进制缺失 | 后台下载；本次启动的工具稍后挂载 | 日志 `downloading …`；`status.phase: provisioning` → `ready` |
+| 二进制缺失且无法下载 | 后台任务失败，`status.error` 写明每条线路的原因 | 日志 + 状态路由；下次启动重试 |
+| `autoProvision` 关闭且二进制缺失 | **激活失败**，报错给出三条可行建议 | 明确的下一步 |
+| 一条加速线路失败 | 换下一条线路，记录失败原因 | 日志里逐条列出；`status.github.routes` 显示链条 |
+| 首次准备花光预算（`provisionTimeoutMs`） | 后台任务失败，写明各线路原因与未尝试条数 | 启动已经完成，不受影响 |
+| 加速前缀配置非法 | **激活失败**，给出 `https://gh-proxy.com` 这种写法 | 配置错误早失败 |
+| `DSHM_GITHUB_PROXY` 非法 | 告警并忽略该变量，继续解析区域与市场前缀 | 日志一条 warning |
 | 探测失败 | 告警；`failOnStartupError` 为真则失败 | `status.probe.error` + stderr |
 | MCP 桥连接失败 | 记录 `phase: "failed"` 与原因；不中断 profile | 错误日志 + 状态路由 |
 | 技能注册服务不存在 | 告警跳过技能，工具照常 | 日志说明 profile 未加载 skills |
@@ -179,7 +218,8 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 ## 7. 安全
 
 - 子进程只用 argv 传递参数，不拼接 shell 字符串；`shell: false`；
-- 下载只从 MathWorks 的 GitHub Release，校验体积下限，先写临时文件再原子改名并置可执行位；
+- 下载只从 MathWorks 的 GitHub Release，经可选的反代前缀（仅 `https://`、无凭据/查询串），校验体积下限与文件头（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），先写临时文件再原子改名并置可执行位——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当服务装上；
+- `git clone` 关掉交互式凭据提示（`GIT_TERMINAL_PROMPT=0`），避免无人值守的启动挂在密码输入上；
 - 不读取、不写入 MATLAB 许可证或凭据；`dsh-mcp-client` 默认会清理名字含 `KEY/PASSWORD/SECRET/TOKEN` 的环境变量，插件只补充 `WINDIR`（Windows 上 MATLAB 必需）；
 - 状态路由只读、无副作用，且仅在 profile 里有 `ctx.webServer` 时注册；
 - 工具调用本身的高风险（执行任意 MATLAB 代码）由 DSH 既有的权限与审批机制在 `tools/pre-execute` 上治理，插件不另开审批通道，也不弱化它。
@@ -195,6 +235,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 5. **失败可读**：未知技能组、缺失二进制、探测失败、桥连接失败各自有不同的、可操作的报告；
 6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
 7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
+8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，工具包 24 组 / 158 个技能挂载，真实 MCP 握手 5 工具 / 2 资源，71.6 秒后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
 
 ## 9. 已知限制与后续方向
 
@@ -202,4 +243,6 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 - **不使用 MCP 资源注入**：`guidelines://coding` 等资源已可被模型通过 MCP 资源工具按需读取，但不会自动进入系统提示。自动注入属于 DSH 的资源策略问题，不在这里私开通道。
 - **不管理 MATLAB 安装本身**：`matlab-install-products` 技能可以让 Agent 参与安装，但安装过程仍归 MATLAB。
 - **Simulink 只是顺带支持**：检测到 Simulink 工具包时会加载其技能组与 `tools/tools.json` 扩展；未做针对 Simulink 的专门验证（本机未安装 Simulink）。
-- **代理**：下载走 DSH 启动器安装的全局 dispatcher（`HTTPS_PROXY` 生效）；`git clone` 单独翻译代理。若在没有 DSH 启动器的环境里直接 `node` 调用下载函数，需要 `NODE_USE_ENV_PROXY=1`。
+- **加速路线跟随 DSH，不另建配置中心**：插件读 DSH 市场持久化的区域与前缀，也接受 `DSHM_GITHUB_PROXY` 与自己的 `githubProxy`（见 §4.10）。若 DSH 将来改变市场状态的存放位置或字段名，插件会退化为“直连 + 配置前缀可用”，不会因此无法启动；反过来说，插件不会把自己的线路写回市场状态，两边的写入权仍归 DSH。
+- **首次启动有一段“工具还没出现”的窗口**：获取在后台（本机实测 71.6 秒完成），期间模型看不到 MATLAB 工具与技能，`status.phase` 为 `provisioning`。这是为了不越过 DSH Desktop 的 60 秒启动上限（§4.7）；想让首次启动等到完成，用 `provisionWaitMs`（但必须 ≤ 60 秒）。若将来 DSH 提供“安装期预置”或“就绪前阻塞但不判失败”的机制，这一段应该交给它。
+- **后台挂载依赖 Cordis 的延迟 `ctx.plugin`**：插件被卸载后后台任务若仍在跑，挂载会以 “inactive context” 失败并被记录为 `status.error`，不会污染进程；成功路径已由 `test/activate.test.js` 的“never holds activation”用例覆盖。
