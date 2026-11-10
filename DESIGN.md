@@ -185,6 +185,18 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 成功路径用实测确认过（同一台中国网络机器、全新 `DSH_HOME`、空安装根）：激活 **0.10 秒**返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，工具包经 `gh-proxy.com` 克隆后挂上 24 组 / 158 个技能，二进制 19,905,376 字节经 `gh-proxy.com` 装好（`--version` 为 `v0.16.0`），真实 MCP 握手探测到 5 个工具 / 2 个资源，71.6 秒后 `phase: ready`。状态路由同时给出 `github.{region,proxy,routes,source}` 与 `server.route`，所以“它到底走了哪条线路”不需要靠猜。
 
+### 4.11 设置页与进度对话框：配置交回 DSH，界面只占槽位
+
+**配置仍然只有一份。** 页面不写自己的 JSON：它把字段补丁 POST 给 `lib/api.js`，后者调用 `settings.update(profileEntryId, patch, revision)`——DSH 校验 schema、写 profile 补丁、再 reconcile Loader。因此页面能改的字段恰好是 schema 里 `.volatile()` 的那些（`settings.update` 拒绝非 volatile 字段，页面拿到 400），而 `cordis.patch.yml` 与页面互为两种写法；`revision` 用来发现“另一个窗口先改了”（409，页面重新载入）。全选技能组时写 `skillGroups: []`（=全部），厂商以后新增的组会自动纳入，不会因为页面存过一份旧名单而漏掉。
+
+**改完立刻生效，靠的是 Cordis 的 volatile 语义。** volatile 变更不重启插件，只把新值提交进运行中的引用并发 `loader/volatile-update`。插件监听该事件（120 ms 合并一次），dispose 掉两个子插件（技能目录、MCP 桥）再按新值重挂：技能组变 → 只换 `customSkillDirs`；MATLAB 参数、命名空间、超时变 → 重建 MCP 桥。不联网、不重启，日志一行 `settings applied`。若后台正在取依赖，重挂排队到取完（`remountRequested`）。
+
+**进度对话框只是一个槽位。** `shell.overlay` 是框架级浮动层（本身可点击穿透，占用者自己决定 pointer-events），正好放右下角提示；`settings.section` 是“设置里一页”的席位。两个注册都不替换宿主 UI：`id` 用自己的，`order` 只决定排序。组件是手写 React（`client/client.js`），只用 `--dsw-alias-*` 主题变量、不 import 任何客户端基础库——DSH 自己的插件文档说得很直白：基础库 API 会变，一个抛错组件会把整个槽位条目打空。
+
+**“安装完成钩子”在这套框架里不存在。** 插件只有在第一次被 Loader 加载之后才有代码在跑；`pnpm add` 阶段没有任何监听者能接“装好了”。所以“装完就下”落到“首次激活就开始下”：激活只做本地发现（毫秒级），缺的那一半交给后台并立刻开始报进度，界面弹出对话框，宿主 60 秒上限不受影响。`provisionWaitMs` 留给愿意等的 profile。
+
+**数据流很短。** 页面只读 `/plugin/matlab/{state,progress}`、只写 `/plugin/matlab/{config,provision}` 四个同源 JSON 路由；没有 iframe、没有第二套 HTML、没有第二份校验。`phase/progress/groups/config` 就是插件内部那份真相的投影。
+
 ## 5. 失败模式
 
 每条失败都有确定的归属和可读的后果：
@@ -201,6 +213,10 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 | 首次准备花光预算（`provisionTimeoutMs`） | 后台任务失败，写明各线路原因与未尝试条数 | 启动已经完成，不受影响 |
 | 加速前缀配置非法 | **激活失败**，给出 `https://gh-proxy.com` 这种写法 | 配置错误早失败 |
 | `DSHM_GITHUB_PROXY` 非法 | 告警并忽略该变量，继续解析区域与市场前缀 | 日志一条 warning |
+| 设置页写非 volatile 字段 | 400，页面显示 DSH 的报错 | 只有 `.volatile()` 能从页面改 |
+| 两个窗口同时改配置 | 409，页面重新载入当前值 | revision 冲突 |
+| profile 没有 `settings` 服务 | 503，页面提示改 `cordis.patch.yml` | 极简组合仍然可配置 |
+| 后台准备期间改设置 | 重挂排队到准备完成，日志随后一行 `settings applied` | 不会出现两套挂载 |
 | 探测失败 | 告警；`failOnStartupError` 为真则失败 | `status.probe.error` + stderr |
 | MCP 桥连接失败 | 记录 `phase: "failed"` 与原因；不中断 profile | 错误日志 + 状态路由 |
 | 技能注册服务不存在 | 告警跳过技能，工具照常 | 日志说明 profile 未加载 skills |
@@ -236,6 +252,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
 7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
 8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，工具包 24 组 / 158 个技能挂载，真实 MCP 握手 5 工具 / 2 资源，71.6 秒后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
+9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision` 四条路由、非 volatile 拒绝、503 与 409 冲突、405；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂、下载进度的百分比。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
 
 ## 9. 已知限制与后续方向
 
@@ -246,3 +263,5 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 - **加速路线跟随 DSH，不另建配置中心**：插件读 DSH 市场持久化的区域与前缀，也接受 `DSHM_GITHUB_PROXY` 与自己的 `githubProxy`（见 §4.10）。若 DSH 将来改变市场状态的存放位置或字段名，插件会退化为“直连 + 配置前缀可用”，不会因此无法启动；反过来说，插件不会把自己的线路写回市场状态，两边的写入权仍归 DSH。
 - **首次启动有一段“工具还没出现”的窗口**：获取在后台（本机实测 71.6 秒完成），期间模型看不到 MATLAB 工具与技能，`status.phase` 为 `provisioning`。这是为了不越过 DSH Desktop 的 60 秒启动上限（§4.7）；想让首次启动等到完成，用 `provisionWaitMs`（但必须 ≤ 60 秒）。若将来 DSH 提供“安装期预置”或“就绪前阻塞但不判失败”的机制，这一段应该交给它。
 - **后台挂载依赖 Cordis 的延迟 `ctx.plugin`**：插件被卸载后后台任务若仍在跑，挂载会以 “inactive context” 失败并被记录为 `status.error`，不会污染进程；成功路径已由 `test/activate.test.js` 的“never holds activation”用例覆盖。
+- **设置页的字段集合等于 volatile 集合**：想从页面改一个字段，就得把它标成 `.volatile()`，代价是该字段的变更不再走“重启插件”的默认语义，而由本插件自己重挂（§4.11）。这是有意的交换：页面要即时生效，就必须自己承担重挂的正确性，而重挂路径有测试覆盖；若将来某个字段需要“重启才生效”的语义，就别把它放进页面。
+- **进度对话框不做取消**：一次下载开始后不能在页面里中途取消；关掉对话框只是隐藏，后台继续（这正是“不阻塞启动”的另一面）。要中止只能退出宿主进程。

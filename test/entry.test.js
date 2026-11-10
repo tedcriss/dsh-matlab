@@ -27,6 +27,7 @@ function fakeContext() {
       logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       // The skill registry must exist, or the plugin deliberately skips the catalog.
       get: name => (name === 'skills' ? {} : undefined),
+      on: () => () => {},
       plugin: (module, config) => {
         mounts.push(config)
         return Promise.resolve()

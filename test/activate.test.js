@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { activate, STATUS_PATH } from '../lib/activate.js'
+import { API_PATHS } from '../lib/api.js'
 import { resolveOptions } from '../lib/options.js'
 
 const MANIFEST = `display-name: "Example Agentic Toolkit"
@@ -54,10 +55,12 @@ function fakeContext(services = { skills: {}, webServer: { register: () => () =>
   const routes = []
   const logs = []
   const disposers = []
+  const listeners = []
   return {
     mounts,
     routes,
     logs,
+    listeners,
     ctx: {
       logger: {
         info: message => logs.push(['info', message]),
@@ -66,6 +69,10 @@ function fakeContext(services = { skills: {}, webServer: { register: () => () =>
         debug: () => {},
       },
       get: name => services[name],
+      on: (name, callback) => {
+        listeners.push({ name, callback })
+        return () => {}
+      },
       plugin: (module, config) => {
         mounts.push({ module, config })
         return Promise.resolve()
@@ -197,10 +204,10 @@ test('serves the resolved state on the status route', async t => {
   const { ctx } = fakeContext({ skills: {}, webServer })
 
   await activate(ctx, baseConfig({ ...isolated(dir), toolkitRoots: [toolkit], mcpServerPath: binary }), seams(binary))
-  assert.equal(webServer.registered.length, 1)
-  assert.equal(webServer.registered[0].kind, 'exact')
-  assert.equal(webServer.registered[0].path, STATUS_PATH)
-  const response = await webServer.registered[0].resource()
+  const status = webServer.registered.find(route => route.path === STATUS_PATH)
+  assert.ok(status, 'the status route must be registered')
+  assert.equal(status.kind, 'exact')
+  const response = await status.resource()
   const body = await response.json()
   assert.equal(body.phase, 'ready')
   assert.equal(body.server.version, 'v9.9.9')
@@ -426,8 +433,7 @@ test('a first-time fetch never holds activation, because DSH abandons a slow sta
   assert.equal(status.server, undefined)
 })
 
-test('toolkit extension files reach the first connection even when the toolkit is fetched in the background', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+test('toolkit extension files reach the first connection even when the toolkit is fetched in the background', async t => {  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   process.env.DSH_HOME = join(dir, 'dsh-home')
   t.after(() => delete process.env.DSH_HOME)
@@ -458,4 +464,89 @@ mcp-server-extensions:
   // one and only connection; the background task must clone first.
   assert.equal(status.phase, 'ready')
   assert.ok(mounts[1].config.args.includes(`--extension-file=${join(toolkit, 'tools', 'tools.json')}`))
+})
+
+test('the settings page can read the groups it toggles', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const webServer = recordingWebServer()
+  const { ctx } = fakeContext({ skills: {}, webServer })
+
+  await activate(ctx, baseConfig({ ...isolated(dir), toolkitRoots: [toolkit], mcpServerPath: binary }), seams(binary))
+
+  const route = webServer.registered.find(entry => entry.path === API_PATHS.state)
+  assert.ok(route, 'the state route must be registered')
+  const view = await (await route.resource(new Request('http://127.0.0.1' + API_PATHS.state))).json()
+  assert.deepEqual(view.groups.map(group => group.name), ['core', 'extra'])
+  assert.ok(view.groups.every(group => group.selected), 'every group is loaded by default')
+  assert.equal(view.groups[0].skills, 1)
+  assert.equal(view.config.sessionMode, 'auto')
+})
+
+test('a settings change remounts the catalog with the new selection', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx, mounts, listeners } = fakeContext()
+  // Stands in for the live wrappers DSH refreshes without restarting the plugin.
+  let skillGroups = []
+  const config = baseConfig({
+    ...isolated(dir),
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+    skillGroups: { get: () => skillGroups },
+  })
+
+  await activate(ctx, config, seams(binary))
+  assert.equal(mounts.length, 2)
+
+  skillGroups = ['core']
+  const listener = listeners.find(entry => entry.name === 'loader/volatile-update')
+  assert.ok(listener, 'the plugin must follow volatile config updates')
+  listener.callback([['skillGroups']])
+  await new Promise(resolve => setTimeout(resolve, 400))
+
+  assert.equal(mounts.length, 4, 'both halves remount against the new config')
+  assert.deepEqual(mounts[2].config.customSkillDirs, [join(toolkit, 'skills-catalog', 'core')])
+})
+
+test('a background download reports its progress to the dialog', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const webServer = recordingWebServer()
+  const { ctx } = fakeContext({ skills: {}, webServer })
+
+  const status = await activate(ctx, baseConfig({
+    ...isolated(dir),
+    toolkitRoots: [toolkit],
+    autoProvision: true,
+    provisionWaitMs: 5_000,
+  }), {
+    ...seams(binary),
+    ensureMcpServer: async options => {
+      options.onProgress({ bytes: 5_000_000, totalBytes: 10_000_000 })
+      return { path: binary, source: 'download', downloaded: true, route: 'https://gh-proxy.com' }
+    },
+  })
+
+  assert.equal(status.phase, 'ready')
+  assert.equal(status.progress.stage, 'done')
+  const route = webServer.registered.find(entry => entry.path === API_PATHS.progress)
+  const view = await (await route.resource(new Request('http://127.0.0.1' + API_PATHS.progress))).json()
+  assert.equal(view.percent, 50)
+  assert.equal(view.route, 'gh-proxy.com')
 })

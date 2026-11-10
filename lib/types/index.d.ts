@@ -142,6 +142,16 @@ export interface ActivationStatus {
     readonly proxySource: 'config' | 'environment' | 'market' | 'none'
     readonly routes: readonly string[]
   }
+  /** First-time fetch progress, mirrored by `GET /plugin/matlab/progress`. */
+  readonly progress?: {
+    readonly active: boolean
+    readonly stage: 'idle' | 'clone' | 'download' | 'done' | 'failed'
+    readonly bytes: number
+    readonly totalBytes?: number
+    readonly route?: string
+    readonly startedAt?: number
+    readonly error?: string
+  }
   readonly toolkit?: readonly {
     readonly root: string
     readonly displayName: string

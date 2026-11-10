@@ -7,6 +7,8 @@
 - **工具**：来自 MATLAB MCP Server，注册为 `mcp__matlab__<tool>`——`evaluate_matlab_code`、`run_matlab_file`、`run_matlab_test_file`、`check_matlab_code`、`detect_matlab_toolboxes`，以及两个 `guidelines://` 资源。
 - **技能**：来自 MATLAB Agentic Toolkit，由 `dsh-skill-filesystem` 直接从 `skills-catalog/<group>` 加载。默认全量（MATLAB 工具包 24 组 / 158 个技能）；用 `skillGroups` 列组名可收窄，以节省上下文。
 - **Simulink**：若同时安装了 Simulink Agentic Toolkit，它的技能组与 `tools/tools.json` MCP 扩展也会一起接入。
+- **设置页**（`设置 → MATLAB`）：连接状态、按组开关技能、MATLAB 根目录与 MCP Server 路径、下载线路；保存走 DSH 自己的 settings 服务，立即生效、不用重启。
+- **进度对话框**：首次下载二进制或克隆工具包时出现在右下角，慢线路看得见，而不是像卡死。
 
 ## 不做什么
 

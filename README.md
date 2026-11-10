@@ -84,7 +84,7 @@ pnpm add file:/path/to/dsh-matlab
 
 ## 配置
 
-全部字段都可在 profile 的 `cordis.patch.yml` 中覆盖；带 `volatile` 的字段出现在设置表单里，改完即重连。
+全部字段都可在 profile 的 `cordis.patch.yml` 中覆盖；带 `volatile` 的字段同时出现在**设置 → MATLAB** 页面里，保存后立即生效（见下节）。
 
 ```yaml
 - id: matlab-agentic
@@ -118,6 +118,21 @@ pnpm add file:/path/to/dsh-matlab
 | `watchSkills` | `true` | 工具包变更时热更新技能目录 |
 | `probe` / `probeTimeoutMs` | `true` / `20000` | 连接前做一次 MCP 握手探测 |
 | `statusRoute` | `true` | 提供 `GET /plugin/matlab/status` |
+
+## 设置页与依赖进度对话框
+
+插件自带 Web 界面（纯 ESM 客户端模块，无构建步骤）：
+
+- **设置 → MATLAB**（侧栏设置面板里的一页）：连接状态（阶段、MATLAB 根、MCP Server 与版本、实际线路、探测到的工具数）；**技能组开关**（默认全选；全部勾选时保存为“全部”，将来新增的组自动纳入）；MATLAB 启动参数（根目录、桌面、会话模式、起始目录、启动即拉起、遥测）；MCP Server（可执行文件路径、命名空间、调用超时）；依赖下载（加速前缀、区域、预算、启动等待、监视工具包）；维护（一键检查并安装缺失依赖）。
+- **右下角进度对话框**：首次准备、或缺口被补齐时出现，显示“克隆工具包 / 下载二进制”、字节进度（镜像声明长度时是确定进度，否则流动条）、当前线路；可以关掉（后台继续），失败可重试。它只是提示，不挡住应用。
+
+设置保存后**立即生效**：页面通过 DSH 的 `settings` 服务写入 profile 补丁，DSH 把 volatile 变更提交给运行中的插件，插件收到 `loader/volatile-update` 后重新挂载受影响的部分（技能目录、MCP 桥）。直接在 `cordis.patch.yml` 里改这些字段效果相同。
+
+页面只是同一份配置的另一种写法：schema 仍是校验者，非 `volatile` 字段不能在页面保存（返回 400），revision 冲突（另一个窗口先改过）返回 409，页面随后重新载入。
+
+### 为什么没有“安装完成时”就下载
+
+DSH 在插件第一次被加载之前不会运行它的任何代码，所以“安装完成钩子”在这个框架里不存在：`pnpm add` 只是把包装进 profile，进程里还没有这个插件可以监听事件。最早能检查依赖的时机是**首次激活**——安装后的第一次启动；那一刻插件已经在后台开始获取并弹出进度对话框，启动本身不被阻塞。想更早备好，只能先跑一次 MathWorks 官方安装器（`setupAgenticToolkit("install")`）。
 
 ## 首次下载：沿用 DSH 的 GitHub 加速
 
@@ -204,11 +219,15 @@ matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 by
    }
    ```
 
+4. 打开 **设置 → MATLAB**：应能看到阶段、MATLAB 根、MCP Server 版本、实际线路、24 个技能组开关；改几个再保存，日志应出现 `settings applied`，技能目录随之变化（不需要重启）。
+
+5. 若启用了插件但本机还没有二进制/工具包：右下角会出现进度对话框，`status.phase` 为 `provisioning`；准备完成后对话框提示就绪，工具与技能自动出现。
+
 ## 技能组：默认全部，可按需收窄
 
 技能的**选择单位是“组”**（MathWorks 的 `skills-catalog/<group>`），不是单个文件——这与 MathWorks 给 Amp 的 `amp.skills.path` 完全一致。组名来自工具包的 `manifest.yaml`，也就是 `skills-catalog/` 下的目录名。**默认加载全部组**；想省上下文再按组收窄。
 
-三种写法（都在 profile 的 `cordis.patch.yml` 里覆盖 `matlab-agentic` 这一行）：
+最省事的是 **设置 → MATLAB → 技能组** 里点开关（保存即生效，不用重启）。想写进配置就用下面三种写法（都在 profile 的 `cordis.patch.yml` 里覆盖 `matlab-agentic` 这一行）：
 
 ```yaml
 # 1) 默认：加载全部组（MATLAB 工具包 24 组 / 158 个技能）
@@ -321,21 +340,28 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | Windows 下 MATLAB 起不来且无日志 | MATLAB 需要 `WINDIR`；插件已显式透传，若仍失败请检查启动器环境 |
 | 首次启动卡在下载、最后进了恢复助手 | 直连 GitHub 在国内约 7 KB/s；先看日志里 `github: …` 一行用了哪条线路。把 DSH 市场的下载区域设为“中国区”，或设 `githubProxy` / `DSHM_GITHUB_PROXY`（见“首次下载”一节） |
 | 下载失败（企业代理） | DSH 启动器会把 `HTTPS_PROXY` 应用到 `fetch`；纯 Node 环境下需 `NODE_USE_ENV_PROXY=1`。也可手动下载二进制后设 `mcpServerPath` |
+| 设置页保存报 `not volatile` / 400 | 只有 `.volatile()` 字段能从页面保存；其余字段请写进 `cordis.patch.yml` 后重启 |
+| 设置页保存报 409 | 另一个窗口先改过同一份配置：页面会自动重新载入，确认后重试 |
+| 设置页显示“没有 settings 服务” | 该 profile 未组合 DSH 的 settings（例如极简 CLI 组合）；改 `cordis.patch.yml` 或在插件页用自动生成的表单 |
+| 改了设置但技能没变 | 看日志有没有 `settings applied`；若仍在 `provisioning`，等后台准备完成后会自动重挂 |
 | 安装时 pnpm 提示缺少 peer `@deepseek-ai/*` | 预期行为：这些包由 DSH 运行时的安装范围提供，不需要装进 profile |
 
 ## 开发
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 94 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 104 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
 - 四个 `@deepseek-ai/*` 依赖都声明为 **optional peer**：它们由 DSH 安装本身提供，若声明成必需依赖，包管理器会去公共 registry 取（`@deepseek-ai/schemastery` 在 npm 上会连带拉取未发布的 DSH 包而安装失败）；
 - 与 MATLAB 有关的用例是**真机集成**：设置了 `MATLAB_MCP_SERVER`，或 `~/.matlab/agentic-toolkits/bin/` 存在时，真的会拉起 MathWorks 服务做一次 MCP 握手，并逐个校验 158 个 `SKILL.md` 是否符合 DSH 的技能 frontmatter 规则；否则自动跳过；
 - `test/cordis-contract.integration.test.js` 用**真实 Cordis** 激活插件（只替换传输层），因为插件 `apply` 的返回值会被 Cordis 当作 effect 校验——这条契约出错时线上表现是 `TypeError: Invalid effect`；
+- 客户端是**手写的 ESM 模块**（`client/client.js`，调 `window.__ModuleLoader__.load`），没有打包步骤：`dsh.client` 只声明平台与激活顺序，React 由页面模块表提供，样式只用 `--dsw-alias-*` 主题变量；`manifest` 见 `package.json` 的 `dsh.client`；
 - 目录说明：
-  - `lib/activate.js` — 绑定逻辑（发现 → 探测 → 挂载两个传输层）
+  - `lib/activate.js` — 绑定逻辑（发现 → 探测 → 挂载两个传输层；后台准备与按设置重挂）
+  - `lib/api.js` — 设置页与进度对话框用的 JSON 路由（`/plugin/matlab/{state,progress,config,provision}`）
+  - `client/client.js` — 设置页（`settings.section`）与进度对话框（`shell.overlay`）
   - `lib/toolkit.js` + `lib/yaml-mini.js` — 读 MathWorks `manifest.yaml`（技能组、`mcp-server-extensions`）
   - `lib/installer.js` — 读 `config.json`（MATLAB 版本、服务版本）
   - `lib/matlab-root.js` / `lib/mcp-binary.js` / `lib/release.js` — 发现与获取

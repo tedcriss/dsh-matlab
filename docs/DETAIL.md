@@ -7,6 +7,8 @@ Brings MathWorks' own MATLAB capability surface into DSH without reimplementing 
 - **Tools** from the MATLAB MCP Server, registered as `mcp__matlab__<tool>`: `evaluate_matlab_code`, `run_matlab_file`, `run_matlab_test_file`, `check_matlab_code`, `detect_matlab_toolboxes`, plus the two `guidelines://` resources.
 - **Skills** from the MATLAB Agentic Toolkit, loaded straight from `skills-catalog/<group>` with `dsh-skill-filesystem`. Every group is loaded by default (24 groups, 158 skills for the MATLAB toolkit); list group names in `skillGroups` to load fewer.
 - **Simulink** groups and its `tools/tools.json` MCP extension, when the Simulink Agentic Toolkit is installed alongside.
+- **A Settings page** (`Settings → MATLAB`) for the connection state, per-group skill switches, the MATLAB root and MCP Server path, and the download route — saved through DSH's own settings service, applied without a restart.
+- **A progress dialog** in the shell overlay while the first binary or toolkit is fetched, so a slow mirror is visible instead of looking like a hang.
 
 ## What it does not do
 
