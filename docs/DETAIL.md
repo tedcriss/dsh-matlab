@@ -16,13 +16,9 @@ It runs no MATLAB code itself, copies no `SKILL.md`, and rewrites nothing under 
 
 ## Requirements
 
-MATLAB R2021a or later, the MATLAB MCP Server binary, and a MATLAB Agentic Toolkit checkout. The official installer provides all three:
+MATLAB R2021a or later. The MCP Server binary and the Agentic Toolkit checkout belong to the plugin and live in `$DSH_HOME/matlab`; a MathWorks installer copy under `~/.matlab/agentic-toolkits` is deliberately not read.
 
-```matlab
-setupAgenticToolkit("install")
-```
-
-The plugin discovers that install in `~/.matlab/agentic-toolkits`, reads the MATLAB version you chose there, and reuses the binary it placed. With no installation it downloads the binary and clones the toolkit itself — in the background, because DSH Desktop abandons a host start that has not finished within 60 seconds; `status.phase` is `provisioning` until the fetch lands and mounts.
+A first start downloads the binary and clones the toolkit in the background, because DSH Desktop abandons a host start that has not finished within 60 seconds; `status.phase` is `provisioning` until the fetch lands and mounts, and a progress dialog shows what is happening. The Settings page can check the published versions later and replace an artifact only when a newer one exists.
 
 ## Settings worth knowing
 

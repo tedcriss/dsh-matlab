@@ -72,7 +72,7 @@ test('falls back to the platform installer folder', async () => {
       ]
     },
   })
-  assert.equal(found.source, 'installer')
+  assert.equal(found.source, 'platform-folder')
   assert.equal(found.root, '/opt/MATLAB/R2025b')
 })
 

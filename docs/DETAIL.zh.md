@@ -16,13 +16,9 @@
 
 ## 环境要求
 
-MATLAB R2021a 或更新、MATLAB MCP Server 二进制、MATLAB Agentic Toolkit checkout。官方安装器一次装齐：
+MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit checkout 属于插件自己，放在 `$DSH_HOME/matlab`；`~/.matlab/agentic-toolkits` 里安装器装的那一份**不会被读取**。
 
-```matlab
-setupAgenticToolkit("install")
-```
-
-插件会发现 `~/.matlab/agentic-toolkits` 里的这份安装，沿用你在 MATLAB 里选定的版本，并复用安装器放好的二进制。若什么都没装，它会自行下载二进制并克隆工具包——放在**后台**做，因为 DSH Desktop 会放弃 60 秒内没启动完成的宿主机；在准备完成并挂载之前，`status.phase` 是 `provisioning`。
+首次启动会在后台下载二进制并克隆工具包——因为 DSH Desktop 会放弃 60 秒内没启动完成的宿主机；准备完成并挂载之前 `status.phase` 是 `provisioning`，右下角有进度对话框。之后可以在设置页检查发布版本，只有确实更新时才替换。
 
 ## 值得注意的设置
 

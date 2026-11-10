@@ -53,9 +53,7 @@ export interface ConfigOptions {
   provisionTimeoutMs: number
   /** How long activation may wait for a first-time fetch; 0 fetches in the background. */
   provisionWaitMs: number
-  /** MathWorks Agentic Toolkit install root; empty uses `~/.matlab/agentic-toolkits`. */
-  installRoot: string
-  /** Toolkit checkouts to read skills from; empty scans the installer layout. */
+  /** Toolkit checkouts to read skills from; empty uses only the plugin data folder. */
   toolkitRoots: string[]
   /** Skill groups to load; empty loads every group. */
   skillGroups: string[]
@@ -106,25 +104,12 @@ export interface ProbeResult {
   readonly stderr?: string
 }
 
-/** State the MathWorks Agentic Toolkit installer records in `config.json`. */
-export interface InstallerConfig {
-  readonly mcpServerVersion?: string
-  readonly matlab?: { readonly root?: string; readonly version?: string }
-  readonly toolkits?: Readonly<Record<string, { readonly version?: string; readonly source?: string }>>
-  readonly sessionMode?: string
-  readonly configurations?: Readonly<Record<string, unknown>>
-}
 
 /** Resolved connectivity state served by `GET /plugin/matlab/status`. */
 export interface ActivationStatus {
   readonly plugin: 'dsh-plugin-matlab'
   readonly phase: 'starting' | 'skills' | 'tools' | 'provisioning' | 'ready' | 'failed'
-  readonly installer?: {
-    readonly root: string
-    readonly configFound: boolean
-    readonly matlabRoot?: string
-    readonly serverVersion?: string
-  }
+
   readonly matlab?: MatlabRoot
   readonly server?: {
     readonly path: string
@@ -145,6 +130,7 @@ export interface ActivationStatus {
   /** First-time fetch progress, mirrored by `GET /plugin/matlab/progress`. */
   readonly progress?: {
     readonly active: boolean
+    readonly kind: 'install' | 'update'
     readonly stage: 'idle' | 'clone' | 'download' | 'done' | 'failed'
     readonly bytes: number
     readonly totalBytes?: number
@@ -208,12 +194,11 @@ export interface MatlabRoot {
 
 /**
  * Discover the MATLAB installation root.
- * @param options - explicit setting, installer record, and injected seams.
+ * @param options - explicit setting and injected seams.
  * @returns the chosen root, or `undefined` when no installation was found.
  */
 export declare function discoverMatlabRoot(options?: {
   explicit?: string
-  installerRoot?: string
   env?: NodeJS.ProcessEnv
   platform?: NodeJS.Platform
   isDirectory?: (path: string) => Promise<boolean>
@@ -227,26 +212,6 @@ export declare function discoverMatlabRoot(options?: {
  */
 export declare function releaseRank(name: string): number
 
-/**
- * Read the installer state file.
- * @param installRoot - MathWorks toolkit install root.
- * @returns the parsed config, or `undefined` when the installer never ran there.
- */
-export declare function readInstallerConfig(installRoot: string): Promise<InstallerConfig | undefined>
-
-/**
- * Read the MATLAB root the installer configured.
- * @param config - installer config.
- * @returns the recorded root, if any.
- */
-export declare function installerMatlabRoot(config: InstallerConfig | undefined): string | undefined
-
-/**
- * Read the server version the installer recorded.
- * @param config - installer config.
- * @returns the recorded version, if any.
- */
-export declare function installerServerVersion(config: InstallerConfig | undefined): string | undefined
 
 /**
  * Candidate release asset names for one platform and architecture.
@@ -319,6 +284,87 @@ export declare function resolveGithubAcceleration(options?: {
   routes: (string | null)[]
 }>
 
+/** One artifact's version comparison, as the Settings page shows it. */
+export interface UpdateStatus {
+  readonly installed: boolean
+  readonly current?: string
+  readonly latest?: string
+  readonly outdated: boolean
+  readonly error?: string
+}
+
+/** The result of checking both artifacts for newer published versions. */
+export interface UpdatesCheck {
+  readonly checkedAt: number
+  readonly server: UpdateStatus
+  readonly toolkit: UpdateStatus
+}
+
+/**
+ * Read a `major.minor.patch` triple out of any string that carries one.
+ * @param text - version text such as `v0.16.0` or a `--version` line.
+ * @returns the triple, or `undefined`.
+ */
+export declare function parseVersion(text: unknown): [number, number, number] | undefined
+
+/**
+ * Render a triple the way MathWorks tags releases.
+ * @param version - `[major, minor, patch]`.
+ * @returns `v<major>.<minor>.<patch>`.
+ */
+export declare function formatVersion(version: readonly number[]): string
+
+/**
+ * Compare two triples.
+ * @param left - `[major, minor, patch]`.
+ * @param right - `[major, minor, patch]`.
+ * @returns `1` when left is newer, `-1` when older, `0` when equal.
+ */
+export declare function compareVersions(left: readonly number[], right: readonly number[]): number
+
+/**
+ * Whether a published version is newer than an installed one.
+ * @param latest - published version text or triple.
+ * @param current - installed version text or triple; `undefined` means not installed.
+ * @returns true when an update exists.
+ */
+export declare function isNewer(latest: unknown, current?: unknown): boolean
+
+/**
+ * Ask GitHub which MATLAB MCP Server release is newest.
+ * @param options - acceleration routes and seams.
+ * @returns the newest tag, its version, and the route that answered.
+ */
+export declare function latestServerRelease(options?: {
+  routes?: readonly (string | null)[]
+  fetchImpl?: typeof fetch
+  run?: (command: string, args?: readonly string[], options?: Record<string, unknown>) => Promise<{ code: number; stdout: string; stderr: string }>
+  timeoutMs?: number
+  log?: (entry: { level: string; message: string }) => void
+}): Promise<{ tag: string; version: string; route: string | null }>
+
+/**
+ * Ask the repository which commit the toolkit's default branch points at.
+ * @param options - repository, routes, and seams.
+ * @returns the commit sha and the route that answered.
+ */
+export declare function latestToolkitHead(options: {
+  repo: string
+  routes?: readonly (string | null)[]
+  run?: (command: string, args?: readonly string[], options?: Record<string, unknown>) => Promise<{ code: number; stdout: string; stderr: string }>
+  timeoutMs?: number
+}): Promise<{ sha: string; route: string | null }>
+
+/**
+ * Read the commit a checkout is on.
+ * @param options - checkout root and runner.
+ * @returns the commit sha, or `undefined` when the folder is not a git checkout.
+ */
+export declare function localToolkitHead(options: {
+  root: string
+  run?: (command: string, args?: readonly string[], options?: Record<string, unknown>) => Promise<{ code: number; stdout: string; stderr: string }>
+}): Promise<string | undefined>
+
 /**
  * Discover Agentic Toolkit checkouts.
  * @param options - sources in priority order.
@@ -326,7 +372,6 @@ export declare function resolveGithubAcceleration(options?: {
  */
 export declare function discoverToolkits(options?: {
   explicitRoots?: readonly string[]
-  installRoot?: string
   dataRoots?: readonly string[]
   isDirectory?: (path: string) => Promise<boolean>
 }): Promise<Toolkit[]>
@@ -410,7 +455,6 @@ export declare function resolveOptions(config: ConfigOptions): {
   downloadRegion: 'auto' | 'china' | 'global'
   provisionTimeoutMs: number
   provisionWaitMs: number
-  installRoot?: string
   toolkitRoots: string[]
   skillGroups: string[]
   extensionFiles: string[]

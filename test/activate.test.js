@@ -37,7 +37,6 @@ function baseConfig(overrides = {}) {
     downloadRegion: 'auto',
     provisionTimeoutMs: 300_000,
     provisionWaitMs: 0,
-    installRoot: '',
     toolkitRoots: [],
     skillGroups: [],
     extensionFiles: [],
@@ -111,10 +110,6 @@ async function makeBinary(directory) {
   return path
 }
 
-/** Keep the real MathWorks install root out of every activation under test. */
-function isolated(directory) {
-  return { installRoot: join(directory, 'install-root') }
-}
 
 async function makeToolkit(directory, groups = ['core', 'extra']) {
   const root = join(directory, 'matlab-agentic-toolkit')
@@ -162,8 +157,7 @@ test('mounts the skill provider and the MCP bridge against MathWorks artifacts',
   const toolkit = await makeToolkit(dir)
   const { ctx, mounts } = fakeContext()
 
-  const status = await activate(ctx, baseConfig({ ...isolated(dir),
-    toolkitRoots: [toolkit],
+  const status = await activate(ctx, baseConfig({ toolkitRoots: [toolkit],
     mcpServerPath: binary,
   }), seams(binary))
 
@@ -203,7 +197,7 @@ test('serves the resolved state on the status route', async t => {
   const webServer = recordingWebServer()
   const { ctx } = fakeContext({ skills: {}, webServer })
 
-  await activate(ctx, baseConfig({ ...isolated(dir), toolkitRoots: [toolkit], mcpServerPath: binary }), seams(binary))
+  await activate(ctx, baseConfig({ toolkitRoots: [toolkit], mcpServerPath: binary }), seams(binary))
   const status = webServer.registered.find(route => route.path === STATUS_PATH)
   assert.ok(status, 'the status route must be registered')
   assert.equal(status.kind, 'exact')
@@ -223,7 +217,7 @@ test('an unknown skill group fails activation and names what is available', asyn
   const { ctx } = fakeContext()
 
   await assert.rejects(
-    () => activate(ctx, baseConfig({ ...isolated(dir), toolkitRoots: [toolkit], mcpServerPath: binary, skillGroups: ['nope'] }), seams(binary)),
+    () => activate(ctx, baseConfig({ toolkitRoots: [toolkit], mcpServerPath: binary, skillGroups: ['nope'] }), seams(binary)),
     /unknown skill group\(s\) nope\. Available: core, extra/u,
   )
 })
@@ -237,8 +231,7 @@ test('a shared session drops the target flags MATLAB refuses to combine', async 
   const toolkit = await makeToolkit(dir)
   const { ctx, mounts } = fakeContext()
 
-  const status = await activate(ctx, baseConfig({ ...isolated(dir),
-    toolkitRoots: [toolkit],
+  const status = await activate(ctx, baseConfig({ toolkitRoots: [toolkit],
     mcpServerPath: binary,
     sessionMode: 'existing',
     matlabRoot: '/fake/MATLAB/R2025b',
@@ -261,8 +254,7 @@ test('a failed connection is reported instead of aborting the profile', async t 
   const toolkit = await makeToolkit(dir)
   const { ctx, logs } = fakeContext()
 
-  const status = await activate(ctx, baseConfig({ ...isolated(dir),
-    toolkitRoots: [toolkit],
+  const status = await activate(ctx, baseConfig({ toolkitRoots: [toolkit],
     mcpServerPath: binary,
   }), {
     ...seams(binary),
@@ -286,8 +278,7 @@ test('failOnStartupError turns the same failure into a load error', async t => {
   const { ctx } = fakeContext()
 
   await assert.rejects(
-    () => activate(ctx, baseConfig({ ...isolated(dir),
-      toolkitRoots: [toolkit],
+    () => activate(ctx, baseConfig({ toolkitRoots: [toolkit],
       mcpServerPath: binary,
       failOnStartupError: true,
     }), {
@@ -309,8 +300,7 @@ test('every configured group is loaded when the user names them', async t => {
   const toolkit = await makeToolkit(dir)
   const { ctx, mounts } = fakeContext()
 
-  await activate(ctx, baseConfig({ ...isolated(dir),
-    toolkitRoots: [toolkit],
+  await activate(ctx, baseConfig({ toolkitRoots: [toolkit],
     mcpServerPath: binary,
     skillGroups: ['core', 'extra'],
   }), seams(binary))
@@ -350,8 +340,7 @@ test('provisions over the configured GitHub acceleration and reports the route',
   const { ctx } = fakeContext()
   let requested
 
-  const status = await activate(ctx, baseConfig({ ...isolated(dir),
-    toolkitRoots: [toolkit],
+  const status = await activate(ctx, baseConfig({ toolkitRoots: [toolkit],
     autoProvision: true,
     githubProxy: 'https://gh-proxy.com',
     provisionWaitMs: 2_000,
@@ -389,8 +378,7 @@ test('a missing toolkit is cloned over the same acceleration routes', async t =>
   const { ctx } = fakeContext()
   let cloned
 
-  const status = await activate(ctx, baseConfig({ ...isolated(dir),
-    autoProvision: true,
+  const status = await activate(ctx, baseConfig({ autoProvision: true,
     mcpServerPath: binary,
     githubProxy: 'https://gh-proxy.com/',
     provisionTimeoutMs: 120_000,
@@ -422,7 +410,7 @@ test('a first-time fetch never holds activation, because DSH abandons a slow sta
   const never = new Promise(() => {})
 
   const started = Date.now()
-  const status = await activate(ctx, baseConfig({ ...isolated(dir), autoProvision: true }), {
+  const status = await activate(ctx, baseConfig({ autoProvision: true }), {
     ...seams(binary),
     cloneToolkit: () => never,
   })
@@ -451,8 +439,7 @@ mcp-server-extensions:
 `)
   const { ctx, mounts } = fakeContext()
 
-  const status = await activate(ctx, baseConfig({ ...isolated(dir),
-    autoProvision: true,
+  const status = await activate(ctx, baseConfig({ autoProvision: true,
     mcpServerPath: binary,
     provisionWaitMs: 2_000,
   }), {
@@ -477,7 +464,7 @@ test('the settings page can read the groups it toggles', async t => {
   const webServer = recordingWebServer()
   const { ctx } = fakeContext({ skills: {}, webServer })
 
-  await activate(ctx, baseConfig({ ...isolated(dir), toolkitRoots: [toolkit], mcpServerPath: binary }), seams(binary))
+  await activate(ctx, baseConfig({ toolkitRoots: [toolkit], mcpServerPath: binary }), seams(binary))
 
   const route = webServer.registered.find(entry => entry.path === API_PATHS.state)
   assert.ok(route, 'the state route must be registered')
@@ -500,7 +487,6 @@ test('a settings change remounts the catalog with the new selection', async t =>
   // Stands in for the live wrappers DSH refreshes without restarting the plugin.
   let skillGroups = []
   const config = baseConfig({
-    ...isolated(dir),
     toolkitRoots: [toolkit],
     mcpServerPath: binary,
     skillGroups: { get: () => skillGroups },
@@ -531,7 +517,6 @@ test('a background download reports its progress to the dialog', async t => {
   const { ctx } = fakeContext({ skills: {}, webServer })
 
   const status = await activate(ctx, baseConfig({
-    ...isolated(dir),
     toolkitRoots: [toolkit],
     autoProvision: true,
     provisionWaitMs: 5_000,
@@ -549,4 +534,105 @@ test('a background download reports its progress to the dialog', async t => {
   const view = await (await route.resource(new Request('http://127.0.0.1' + API_PATHS.progress))).json()
   assert.equal(view.percent, 50)
   assert.equal(view.route, 'gh-proxy.com')
+})
+
+test('ignores MathWorks installer artifacts outside the DSH home', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  // A home that looks like a MathWorks install: ~/.matlab/agentic-toolkits with
+  // both artifacts. The plugin must not find them, because they are not its own.
+  const installerRoot = join(dir, '.matlab', 'agentic-toolkits')
+  await mkdir(join(installerRoot, 'bin'), { recursive: true })
+  await writeFile(join(installerRoot, 'bin', process.platform === 'win32' ? 'matlab-mcp-server.exe' : 'matlab-mcp-server'), 'stub')
+  const installedToolkit = join(installerRoot, 'matlab')
+  await mkdir(join(installedToolkit, 'skills-catalog', 'core', 'core-skill'), { recursive: true })
+  await writeFile(join(installedToolkit, 'skills-catalog', 'core', 'core-skill', 'SKILL.md'), '---\nname: core-skill\ndescription: d\n---\n')
+  await writeFile(join(installedToolkit, 'manifest.yaml'), MANIFEST)
+
+  const previous = {}
+  for (const name of ['USERPROFILE', 'HOME', 'DSH_HOME']) {
+    previous[name] = process.env[name]
+    if (name === 'DSH_HOME') process.env.DSH_HOME = join(dir, 'dsh-home')
+    else process.env[name] = dir
+    t.after(() => {
+      if (previous[name] === undefined) delete process.env[name]
+      else process.env[name] = previous[name]
+    })
+  }
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const { ctx } = fakeContext()
+
+  // With the external artifacts ignored, nothing is found and only an explicit
+  // path (or provisioning) can satisfy the requirement.
+  await assert.rejects(
+    () => activate(ctx, baseConfig({ autoProvision: false, toolkitRoots: [installedToolkit] }), seams(binary)),
+    /the MATLAB MCP Server binary was not found/u,
+  )
+})
+
+test('an update replaces only the outdated artifact and remounts it', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const webServer = recordingWebServer()
+  const { ctx, mounts } = fakeContext({ skills: {}, webServer })
+  const calls = []
+
+  const status = await activate(ctx, baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+  }), {
+    ...seams(binary),
+    serverVersion: async () => 'github.com/matlab/matlab-mcp-server v0.16.0',
+    latestServerRelease: async () => ({ tag: 'v0.17.0', version: 'v0.17.0', route: 'https://gh-proxy.com' }),
+    localToolkitHead: async () => 'a'.repeat(40),
+    latestToolkitHead: async () => ({ sha: 'b'.repeat(40), route: 'https://gh-proxy.com' }),
+    updateMcpServer: async () => {
+      calls.push('download')
+      return { path: binary, source: 'download', downloaded: true, route: 'https://gh-proxy.com' }
+    },
+    updateToolkit: async () => {
+      calls.push('update-toolkit')
+      return { root: toolkit, route: 'https://gh-proxy.com' }
+    },
+  })
+  assert.equal(status.phase, 'ready')
+  assert.equal(mounts.length, 2)
+
+  const route = path => webServer.registered.find(entry => entry.path === path)
+  const post = body => route(API_PATHS.update).resource(new Request(`http://127.0.0.1${API_PATHS.update}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  }))
+  const state = async () => (await route(API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))).json()
+
+  const check = await (await post({ check: true })).json()
+  assert.equal(check.server.current, 'v0.16.0')
+  assert.equal(check.server.latest, 'v0.17.0')
+  assert.equal(check.server.outdated, true)
+  assert.equal(check.toolkit.current, 'aaaaaaa')
+  assert.equal(check.toolkit.latest, 'bbbbbbb')
+  assert.equal(check.toolkit.outdated, true)
+  assert.deepEqual(calls, [], 'checking must not download')
+
+  const accepted = await post()
+  assert.equal(accepted.status, 202)
+
+  let view = await state()
+  for (let attempt = 0; attempt < 60 && view.progress.stage !== 'done'; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+    view = await state()
+  }
+
+  assert.deepEqual(calls, ['update-toolkit', 'download'])
+  assert.equal(mounts.length, 4, 'both halves are remounted around the update')
+  assert.equal(view.phase, 'ready')
+  assert.equal(view.progress.kind, 'update')
+  assert.equal(view.progress.stage, 'done')
 })

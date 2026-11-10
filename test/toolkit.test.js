@@ -89,7 +89,7 @@ test('resolves extension files against the toolkit root', async t => {
   assert.deepEqual(toolkit.extensionFiles, [join(root, 'tools', 'tools.json')])
 })
 
-test('scans one and two levels of the installer layout', async t => {
+test('scans one and two levels of the plugin data folder', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'matlab-install-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await makeToolkit(dir, 'matlab-agentic-toolkit', {
@@ -101,7 +101,7 @@ test('scans one and two levels of the installer layout', async t => {
     manifest: 'display-name: "Simulink Agentic Toolkit"\nskill-groups:\n  - name: sm-core\n    path: skills-catalog/sm-core\n',
     groups: [{ name: 'sm-core', required: true }],
   })
-  const toolkits = await discoverToolkits({ installRoot: dir })
+  const toolkits = await discoverToolkits({ dataRoots: [dir] })
   assert.deepEqual(toolkits.map(toolkit => toolkit.kind).sort(), ['matlab', 'simulink'])
 })
 
@@ -112,7 +112,7 @@ test('explicit roots win and unknown explicit roots fail loud', async t => {
     manifest: MANIFEST,
     groups: [{ name: 'core', required: true }],
   })
-  const toolkits = await discoverToolkits({ explicitRoots: [root], installRoot: join(dir, 'missing') })
+  const toolkits = await discoverToolkits({ explicitRoots: [root], dataRoots: [join(dir, 'missing')] })
   assert.equal(toolkits.length, 1)
   await assert.rejects(
     () => discoverToolkits({ explicitRoots: [join(dir, 'nope')] }),

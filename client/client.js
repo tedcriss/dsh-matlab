@@ -96,6 +96,20 @@ window.__ModuleLoader__.load({
         watchHint: '工具包更新后自动重载技能目录。',
         maintenance: '维护',
         maintenanceHint: '检查二进制与工具包是否就绪；缺什么就下载什么，全程在后台进行。',
+        updatesTitle: '更新依赖',
+        updatesHint: '检查 MathWorks 与工具包仓库发布的最新版本；只有比当前新时才下载。更新会先停掉正在运行的 MCP 桥与技能目录，再重新挂载。',
+        checkUpdates: '检查更新',
+        updateNow: '更新依赖',
+        checking: '正在检查…',
+        updating: '正在更新…',
+        upToDate: '已是最新',
+        updateAvailable: '有可用更新',
+        updatesNever: '尚未检查。',
+        currentLabel: '当前',
+        latestLabel: '最新',
+        notInstalled: '未安装',
+        toolkitLabel: '工具包',
+        updateKindTitle: '正在更新 MATLAB 依赖',
         installMissing: '检查并安装缺失依赖',
         installed: '依赖已就绪',
         retry: '重试',
@@ -182,6 +196,20 @@ window.__ModuleLoader__.load({
         watchHint: 'Reload the skill catalog when the toolkit changes on disk.',
         maintenance: 'Maintenance',
         maintenanceHint: 'Check the binary and the toolkit; anything missing is fetched in the background.',
+        updatesTitle: 'Updates',
+        updatesHint: 'Compares the installed artifacts with the newest published ones; only a newer version is downloaded. The running MCP bridge and skill catalog are stopped and remounted around the update.',
+        checkUpdates: 'Check for updates',
+        updateNow: 'Update dependencies',
+        checking: 'Checking…',
+        updating: 'Updating…',
+        upToDate: 'Up to date',
+        updateAvailable: 'Update available',
+        updatesNever: 'Not checked yet.',
+        currentLabel: 'Current',
+        latestLabel: 'Latest',
+        notInstalled: 'not installed',
+        toolkitLabel: 'Toolkit',
+        updateKindTitle: 'Updating MATLAB dependencies',
         installMissing: 'Check and install what is missing',
         installed: 'Dependencies are ready',
         retry: 'Retry',
@@ -567,6 +595,40 @@ window.__ModuleLoader__.load({
           h(Button, { onClick: onRefresh }, t('refresh'))))
     }
 
+    /** One artifact's current/latest line inside the Updates card. */
+    function UpdateRow({ t, label, status }) {
+      const outdated = status?.outdated === true
+      const value = status?.installed !== true
+        ? t('notInstalled')
+        : `${t('currentLabel')} ${status.current ?? '?'}`
+      return h('div', { className: 'mp-row' },
+        h('span', { className: 'mp-label' }, label),
+        h('span', { className: 'mp-group-name' },
+          h('span', null, value),
+          status?.latest === undefined ? null : h('span', { className: 'mp-group-count' }, `${t('latestLabel')} ${status.latest}`),
+          outdated ? h(Badge, { tone: 'warn' }, t('updateAvailable')) : null,
+          status?.error === undefined ? null : h('span', { className: 'mp-error' }, status.error)))
+    }
+
+    function UpdatesCard({ t, state, busy, checking, onCheck, onUpdate }) {
+      const updates = state.updates
+      const outdated = updates !== null && (updates.toolkit?.outdated === true || updates.server?.outdated === true)
+      const summary = updates === null
+        ? t('updatesNever')
+        : outdated
+          ? t('updateAvailable')
+          : t('upToDate')
+      return h('div', { className: 'mp-card' },
+        h('h2', { className: 'mp-card-title' }, t('updatesTitle')),
+        h('p', { className: 'mp-hint' }, t('updatesHint')),
+        h(UpdateRow, { t, label: t('serverTitle'), status: updates?.server }),
+        h(UpdateRow, { t, label: t('toolkitLabel'), status: updates?.toolkit }),
+        h('p', { className: 'mp-note' }, summary),
+        h('div', { className: 'mp-actions' },
+          h(Button, { onClick: onCheck, disabled: busy }, checking ? t('checking') : t('checkUpdates')),
+          outdated ? h(Button, { variant: 'primary', onClick: onUpdate, disabled: busy }, t('updateNow')) : null))
+    }
+
     function SaveBar({ t, busy, dirty, editable, message, onSave, onRevert }) {
       return h('div', { className: 'mp-actions' },
         h(Button, { variant: 'primary', onClick: onSave, disabled: busy || !dirty || !editable },
@@ -583,6 +645,7 @@ window.__ModuleLoader__.load({
       const [selected, setSelected] = useState(() => new Set())
       const [initialSelected, setInitialSelected] = useState(() => new Set())
       const [busy, setBusy] = useState(false)
+      const [checking, setChecking] = useState(false)
       const [message, setMessage] = useState(null)
       const initialDraft = useRef(null)
 
@@ -662,6 +725,32 @@ window.__ModuleLoader__.load({
         }
       }, [load])
 
+      const check = useCallback(async () => {
+        setChecking(true)
+        setMessage(null)
+        try {
+          await postJson('/plugin/matlab/update', { check: true })
+          await load(false)
+        } catch (cause) {
+          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+        } finally {
+          setChecking(false)
+        }
+      }, [load])
+
+      const update = useCallback(async () => {
+        setBusy(true)
+        setMessage(null)
+        try {
+          await postJson('/plugin/matlab/update', {})
+          await load(false)
+        } catch (cause) {
+          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+        } finally {
+          setBusy(false)
+        }
+      }, [load])
+
       if (state === null || draft === null || initialDraft.current === null) {
         return h('div', { className: 'mp-page' },
           h(Styles),
@@ -676,6 +765,14 @@ window.__ModuleLoader__.load({
         h(MatlabCard, { t, state, draft, onDraft: setDraft }),
         h(ServerCard, { t, state, draft, onDraft: setDraft }),
         h(NetworkCard, { t, state, draft, onDraft: setDraft }),
+        h(UpdatesCard, {
+          t,
+          state,
+          busy,
+          checking,
+          onCheck: () => { void check() },
+          onUpdate: () => { void update() },
+        }),
         h(MaintenanceCard, { t, busy, onInstall: () => { void install() }, onRefresh: () => { void load(true) } }),
         h(SaveBar, {
           t,
@@ -733,7 +830,13 @@ window.__ModuleLoader__.load({
       const finished = progress.stage === 'done'
       if (!active && !failed && !finished) return null
 
-      const title = finished ? t('progressDone') : failed ? t('progressFailed') : t('progressTitle')
+      const title = finished
+        ? t('progressDone')
+        : failed
+          ? t('progressFailed')
+          : progress.kind === 'update'
+            ? t('updateKindTitle')
+            : t('progressTitle')
       const line = finished
         ? t('progressDone')
         : failed

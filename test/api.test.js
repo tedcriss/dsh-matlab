@@ -68,13 +68,13 @@ function fakeState(overrides = {}) {
       downloadRegion: 'auto',
       provisionTimeoutMs: 300_000,
       provisionWaitMs: 0,
-      installRoot: undefined,
       toolkitRoots: [],
       skillGroups: [],
       extensionFiles: [],
       watchSkills: true,
     },
     log: () => {},
+    updates: null,
     startProvisioning: async () => ({ started: false, phase: 'ready', missing: [] }),
     ...overrides,
   }
@@ -187,4 +187,61 @@ test('serves state, progress, config, and provision routes', async () => {
 test('skips the routes when the profile has no web server', () => {
   const state = fakeState({ ctx: fakeContext().ctx })
   assert.equal(mountPluginApi(state), undefined)
+})
+
+test('a check reports both artifacts without downloading anything', async () => {
+  const webServer = {}
+  const { ctx, registered } = fakeContext({ webServer })
+  const state = fakeState({ ctx })
+  const check = {
+    checkedAt: 1,
+    server: { installed: true, current: 'v0.16.0', latest: 'v0.17.0', outdated: true },
+    toolkit: { installed: true, current: '1234567', latest: '89abcde', outdated: true },
+  }
+  let checks = 0
+  state.checkDependencies = async () => {
+    checks += 1
+    return check
+  }
+  mountPluginApi(state)
+  const route = registered.find(entry => entry.path === API_PATHS.update)
+  const response = await route.resource(new Request('http://127.0.0.1/plugin/matlab/update', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ check: true }),
+  }))
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.equal(body.server.outdated, true)
+  assert.equal(body.toolkit.latest, '89abcde')
+  assert.equal(checks, 1)
+})
+
+test('an update starts the replacement and reports it as accepted', async () => {
+  const webServer = {}
+  const { ctx, registered } = fakeContext({ webServer })
+  const state = fakeState({ ctx })
+  state.updateDependencies = async () => ({ started: true, check: { checkedAt: 1 } })
+  mountPluginApi(state)
+  const route = registered.find(entry => entry.path === API_PATHS.update)
+  const response = await route.resource(new Request('http://127.0.0.1/plugin/matlab/update', { method: 'POST' }))
+  assert.equal(response.status, 202)
+  assert.equal((await response.json()).started, true)
+
+  const wrongMethod = await route.resource(new Request('http://127.0.0.1/plugin/matlab/update'))
+  assert.equal(wrongMethod.status, 405)
+})
+
+test('state carries the last update check and the progress kind', () => {
+  const state = fakeState({ ctx: fakeContext().ctx })
+  state.updates = {
+    checkedAt: 2,
+    server: { installed: true, current: 'v0.16.0', latest: 'v0.16.0', outdated: false },
+    toolkit: { installed: true, current: '1234567', latest: '1234567', outdated: false },
+  }
+  state.progress = { kind: 'update', active: true, stage: 'download', bytes: 1, totalBytes: 2, startedAt: 1 }
+  const view = stateView(state)
+  assert.deepEqual(view.updates, state.updates)
+  assert.equal(view.progress.kind, 'update')
+  assert.equal(view.progress.percent, 50)
 })

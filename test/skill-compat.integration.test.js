@@ -13,11 +13,11 @@ import { discoverToolkits } from '../lib/toolkit.js'
  * that path: every `SKILL.md` carries a kebab-case `name` equal to its folder
  * and a non-empty `description`.
  */
-const installRoot = join(homedir(), '.matlab', 'agentic-toolkits')
-const toolkits = await discoverToolkits({ installRoot })
+const dataRoot = join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'matlab')
+const toolkits = await discoverToolkits({ dataRoots: [dataRoot] })
 const groups = toolkits.flatMap(toolkit => toolkit.groups)
 
-test('every MathWorks skill is a valid DSH skill', { skip: groups.length === 0 ? 'no Agentic Toolkit installed' : false }, async () => {
+test('every MathWorks skill is a valid DSH skill', { skip: groups.length === 0 ? 'no Agentic Toolkit checkout in the plugin data folder' : false }, async () => {
   const problems = []
   let count = 0
   for (const group of groups) {

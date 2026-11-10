@@ -14,7 +14,7 @@
 | --- | --- |
 | MathWorks | `matlab-mcp-server`：一个 stdio MCP 服务，负责启动/复用 MATLAB 并暴露 5 个工具与 2 个资源；`matlab-agentic-toolkit`：24 个技能组、158 个 `SKILL.md`，以及声明技能组的 `manifest.yaml` |
 | DSH | `@deepseek-ai/dsh-mcp-client`：把任意 MCP 服务的工具注册进 `ctx.tools`，命名 `mcp__<server>__<tool>`；`@deepseek-ai/dsh-skill-filesystem`：扫描若干目录，把 `<root>/<skill>/SKILL.md` 变成会话技能目录 |
-| 用户 | 一个已安装的 MATLAB、一个可能已经由官方安装器装好的工具包与二进制 |
+| 用户 | 一个已安装的 MATLAB；依赖由插件自己装在 `$DSH_HOME/matlab` |
 
 所以缺口不是“能力”，而是**接线**：
 
@@ -35,7 +35,7 @@
 
 ```
                         ┌─────────────────────────────────────────────┐
-  安装器 config.json ─┐  │ matlab-agentic（本插件）                     │
+  插件数据目录 ───────┐  │ matlab-agentic（本插件）                     │
   注册表 / PATH      ├─▶│  discover matlabRoot + binary + toolkit      │
   环境变量            │  │  probe: 一次 stdio MCP 握手                   │
                      │  │  build args: 翻译成 MATLAB 官方 CLI           │
@@ -74,7 +74,7 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 | 属于插件 | 理由 |
 | --- | --- |
 | 发现 MATLAB 安装位置 | 没有别人能做：MCP 服务只接受一个 `--matlab-root` |
-| 发现/获取 `matlab-mcp-server` 二进制 | 同上；且要能复用官方安装器放好的那一份 |
+| 发现/获取 `matlab-mcp-server` 二进制 | 同上；只认插件自己的副本，不在外部目录里找 |
 | 发现工具包 checkout、读 `manifest.yaml` | 组名、必需组、扩展工具文件都是 MathWorks 的数据，必须读而不是硬编码 |
 | 把设置翻译成 MATLAB 官方 CLI 并守规则 | 例如 `--matlab-session-mode=existing` 不能与 `--matlab-root` 同时出现 |
 | 一次 MCP 握手探测 | 把“工具没出现”变成“服务能起但 initialize 被拒” |
@@ -85,7 +85,7 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 | --- | --- |
 | 运行 MATLAB 代码、解析代码、跑测试 | 这是 `matlab-mcp-server` 的职责 |
 | 打包/复制 `SKILL.md` | 参考 MathWorks 的 checkout，保持原件 |
-| 改写 `~/.matlab/agentic-toolkits` 或 `setupAgenticToolkit` 的状态 | 官方安装器是权威；插件只读 |
+| 读取 `~/.matlab/agentic-toolkits` 或任何外部安装副本 | 依赖只属于插件；外部副本会制造第二份、版本可能不同的事实 |
 | 自己实现 MATLAB 工具（哪怕“更方便”） | 会出现第二份语义 |
 | 管理 MATLAB 许可证、启动 MATLAB 桌面 | 属于 MATLAB 自身与 MCP 服务 |
 | 覆盖其他插件的技能根或工具名 | 技能限 `matlab-core` 等组；工具限 `mcp__matlab__*` |
@@ -114,13 +114,15 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 `required` 标记仍然被读取并保留在组数据里（它是厂商元数据，用于展示与文档），只是不再决定默认选择。
 
-如果本机没有跑过官方安装器，插件自己会 `git clone --depth 1` 拿到完整工具包（24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在挂载多少。
+插件会自己 `git clone --depth 1` 拿到完整工具包（24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在挂载多少。
 
-选择单位是“组”，因为 MathWorks 的布局是 `skills-catalog/<group>/<skill>/SKILL.md`，而 DSH 的 provider 以目录为根——只有把组目录当根才能同时满足两者，也正好保留了“组”这个厂商给出的按需加载单位。细到单个技能时，插件支持自建裁剪目录（`skills-catalog/<技能名>` 用软链指向真实技能），此时技能名就是组名；读取器必须跟随符号链接与目录联接，否则 Windows 的 junction 会被 `Dirent.isDirectory()` 判为 false 而静默丢弃。真正需要安装器或一步手动操作才能得到的能力有三项：`sessionMode: existing` 所需的 MATLAB add-on（`matlab-mcp-server --setup-matlab`）、Simulink 工具包，以及安装器记录下来的 MATLAB 版本偏好。
+选择单位是“组”，因为 MathWorks 的布局是 `skills-catalog/<group>/<skill>/SKILL.md`，而 DSH 的 provider 以目录为根——只有把组目录当根才能同时满足两者，也正好保留了“组”这个厂商给出的按需加载单位。细到单个技能时，插件支持自建裁剪目录（`skills-catalog/<技能名>` 用软链指向真实技能），此时技能名就是组名；读取器必须跟随符号链接与目录联接，否则 Windows 的 junction 会被 `Dirent.isDirectory()` 判为 false 而静默丢弃。真正需要额外一步才能得到的能力有两项：`sessionMode: existing` 所需的 MATLAB add-on（`matlab-mcp-server --setup-matlab`）与 Simulink 工具包（自行 clone 后设 `toolkitRoots`）。
 
-### 4.4 读安装器 `config.json`，作为 MATLAB 版本的首选事实来源
+### 4.4 依赖只从插件数据目录来
 
-`config.json` 里的 `matlab.root` 是用户在 MATLAB 里主动选的版本，比 `PATH` 里可能存在的旧版本更可信。因此优先序是：显式配置 → 环境变量 → 安装器记录 → `PATH` → Windows 注册表 → 平台安装目录（取最新版本）。安装器记录的 `mcpServerVersion` 也用于状态展示，便于发现“二进制与安装记录不一致”。
+`$DSH_HOME/matlab` 是依赖的唯一位置：`bin/` 放 MCP Server，`toolkits/` 放 checkout，`logs/` 放服务日志。插件**不读取** `~/.matlab/agentic-toolkits`（MathWorks 安装器的目录），也不读它的 `config.json`——那份记录里的 `matlab.root` 曾经是 MATLAB 版本的首选提示，但它同时让“二进制与工具包从哪来”有了两个答案，版本一旦不同就会出现“DSH 里跑的到底是哪一份”。MATLAB 自身的发现顺序因此收敛为：显式配置 → 环境变量 → `PATH` → Windows 注册表 → 平台安装目录（取最新版本）。
+
+代价是用户不能再指望安装器替 DSH 准备依赖；回报是“缺了就下载、要更新就更新”只有一个答案，而且删掉 `$DSH_HOME/matlab` 就能干净地重来。显式的 `mcpServerPath` / `toolkitRoots` 仍是用户自己的选择，不算自动发现。
 
 ### 4.5 插件数据目录作为默认日志目录
 
@@ -197,6 +199,18 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 **数据流很短。** 页面只读 `/plugin/matlab/{state,progress}`、只写 `/plugin/matlab/{config,provision}` 四个同源 JSON 路由；没有 iframe、没有第二套 HTML、没有第二份校验。`phase/progress/groups/config` 就是插件内部那份真相的投影。
 
+### 4.12 检查更新：只比版本，不盲目重下
+
+依赖装好之后不会自己变新，而“每次启动都检查”又会把网络探测塞回启动路径。所以更新是**用户发起**的动作：设置页的“检查更新”只做两次很小的只读探测，一个字节的业务数据都不下载。
+
+- MCP Server 的最新版本来自 GitHub 的 `releases/latest`——与安装时 `releases/latest/download/…` 指向同一个 release；镜像拒绝 `api.github.com` 时退到 `git ls-remote --tags` 取最高 semver。当前版本来自 `matlab-mcp-server --version` 里的 `vX.Y.Z`。只有 `latest > current` 才算更新（逐段数值比较，不是字符串比较），所以镜像晚同步不会触发“降级”。
+- 工具包没有版本号，只能以提交为准：当前 `git -C <checkout> rev-parse HEAD` 与远端 `git ls-remote <repo> HEAD` 不同即有更新，页面显示两边短 sha；相同就是最新。
+- 两条探测都走与安装相同的加速线路，失败时各自记录原因，互不影响。
+
+真正的替换必须**先停下在跑的那一半**：Windows 不允许替换被进程打开的可执行文件，技能监视器也不该看着 checkout 在自己脚下被重写。于是顺序是 dispose → 替换 → 重新挂载，进度对话框显示 `kind: update`。替换本身也不直接覆盖：工具包先 clone 到 `<checkout>.incoming`，**只有完整克隆成功**才 `rm` 旧目录并 `rename` 就位（失败时 `.incoming` 被清掉、旧 checkout 原封不动，`scanToolkits` 还会忽略以 `.incoming` 结尾的目录）；二进制的下载本来就走“临时文件 + 原子改名”。更新失败时状态是 `failed` 并写明原因，插件随后用磁盘上的旧副本把技能与 MCP 桥重新挂回来（`recoverAfterFailedUpdate`），所以一次失败的更新不会把可用能力弄没。
+
+更新只做一次“当前 → 最新”，没有后台轮询或自动更新：静默替换用户正在依赖的工具属于越权（§4.8 的“不做设置页面”在这里同样适用——每一件影响运行中能力的事都应该由用户按下按钮）。
+
 ## 5. 失败模式
 
 每条失败都有确定的归属和可读的后果：
@@ -217,6 +231,9 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 | 两个窗口同时改配置 | 409，页面重新载入当前值 | revision 冲突 |
 | profile 没有 `settings` 服务 | 503，页面提示改 `cordis.patch.yml` | 极简组合仍然可配置 |
 | 后台准备期间改设置 | 重挂排队到准备完成，日志随后一行 `settings applied` | 不会出现两套挂载 |
+| 检查更新时网络不可用 | 两项各自记录 `error`，页面显示检查失败 | 只读探测，不改变任何东西 |
+| 更新时下载中断 | 状态 `failed`，磁盘上的旧副本下次启动仍可使用 | 日志写明原因 |
+| 检查后发现没有更新 | `started: false, upToDate: true` | 页面显示“已是最新” |
 | 探测失败 | 告警；`failOnStartupError` 为真则失败 | `status.probe.error` + stderr |
 | MCP 桥连接失败 | 记录 `phase: "failed"` 与原因；不中断 profile | 错误日志 + 状态路由 |
 | 技能注册服务不存在 | 告警跳过技能，工具照常 | 日志说明 profile 未加载 skills |
@@ -228,7 +245,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 - 插件对 DSH 侧只依赖两个公开包：`@deepseek-ai/dsh-mcp-client` 的 `StdioConfig`（`transport/serverName/command/args/env/cwd/toolCallTimeoutMs/failOnStartupError`）与 `@deepseek-ai/dsh-skill-filesystem` 的 `Config`（`providerName/includeDefaultRoots/customSkillDirs/watch`）。二者都是稳定文档化字段；
 - `peerDependencies` 用 `*`：真实的解析由 DSH 运行时的安装范围（installation scope）提供，写死小版本反而会在 DSH 升级时阻止加载；
-- MATLAB 侧只依赖**文档化的 CLI 与文件格式**：`--matlab-*` 参数、`bin/` 布局、`config.json`、`manifest.yaml` 的 `skill-groups` / `mcp-server-extensions`、`skills-catalog/<group>/<skill>/SKILL.md`。这些是 MathWorks 公开契约，插件不含版本号判断，因此新版工具包无需改插件；
+- MATLAB 侧只依赖**文档化的 CLI 与文件格式**：`--matlab-*` 参数、`bin/` 布局、Release 资产名、`manifest.yaml` 的 `skill-groups` / `mcp-server-extensions`、`skills-catalog/<group>/<skill>/SKILL.md`。这些是 MathWorks 公开契约，插件不含版本号判断，因此新版工具包无需改插件；
 - `manifest.yaml` 的解析是**目标式**的：只抽两个 section，读不懂就回退到扫描 `skills-catalog/` 目录，永远不因为格式演进把技能丢掉。
 
 ## 7. 安全
@@ -244,8 +261,8 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 设计是否成立，用这几条判定（均已在本机实测通过）：
 
-1. **真机握手**：用 MathWorks 安装器装好的 `matlab-mcp-server.exe` v0.16.0，探测返回 5 个工具、2 个资源、协议 `2025-06-18`；
-2. **真机发现**：从 `~/.matlab/agentic-toolkits/config.json` 取到 `R2023b`，从同目录取到二进制与含 24 组的工具包 checkout；
+1. **真机握手**：插件自己下载到 `$DSH_HOME/matlab/bin` 的 `matlab-mcp-server.exe` v0.16.0，探测返回 5 个工具、2 个资源、协议 `2025-06-18`；
+2. **真机发现**：`$DSH_HOME/matlab` 里取到二进制与含 24 组的工具包 checkout，MATLAB 根由 环境变量 / PATH / 注册表 / 安装目录 发现（本机为 `R2023b`）；
 3. **绑定正确**：默认选中全部 24 组（158 个技能），技能根为各 `skills-catalog/<group>` 目录；MCP 参数含 `--matlab-session-mode=auto --matlab-root=… --matlab-display-mode=desktop --log-folder=…`；
 4. **规则正确**：`existing` 模式自动丢弃 `--matlab-root` / `--matlab-display-mode` / `--initial-working-folder` 并给出警告；
 5. **失败可读**：未知技能组、缺失二进制、探测失败、桥连接失败各自有不同的、可操作的报告；
@@ -265,3 +282,5 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 - **后台挂载依赖 Cordis 的延迟 `ctx.plugin`**：插件被卸载后后台任务若仍在跑，挂载会以 “inactive context” 失败并被记录为 `status.error`，不会污染进程；成功路径已由 `test/activate.test.js` 的“never holds activation”用例覆盖。
 - **设置页的字段集合等于 volatile 集合**：想从页面改一个字段，就得把它标成 `.volatile()`，代价是该字段的变更不再走“重启插件”的默认语义，而由本插件自己重挂（§4.11）。这是有意的交换：页面要即时生效，就必须自己承担重挂的正确性，而重挂路径有测试覆盖；若将来某个字段需要“重启才生效”的语义，就别把它放进页面。
 - **进度对话框不做取消**：一次下载开始后不能在页面里中途取消；关掉对话框只是隐藏，后台继续（这正是“不阻塞启动”的另一面）。要中止只能退出宿主进程。
+- **更新只由用户触发**：没有后台轮询、没有自动更新（§4.12）。想“始终最新”的部署可以自己跑一次 HTTP 调用 `POST /plugin/matlab/update`，但插件不会替人决定。
+- **外部安装器不再参与**：`~/.matlab/agentic-toolkits` 与它的 `config.json` 都不再被读取（§4.4），所以安装器里选的 MATLAB 版本偏好不再影响 DSH；多版本共存时请显式设 `matlabRoot`。

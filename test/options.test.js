@@ -19,7 +19,6 @@ function baseConfig(overrides = {}) {
     githubProxy: '',
     downloadRegion: 'auto',
     provisionTimeoutMs: 300_000,
-    installRoot: '',
     toolkitRoots: [],
     skillGroups: [],
     extensionFiles: [],
@@ -36,7 +35,6 @@ test('treats an empty string as "discover it", not as a value', () => {
   assert.equal(options.matlabRoot, undefined)
   assert.equal(options.mcpServerPath, undefined)
   assert.equal(options.initialWorkingFolder, undefined)
-  assert.equal(options.installRoot, undefined)
 })
 
 test('trims whitespace-only settings to absence', () => {

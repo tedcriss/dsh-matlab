@@ -74,7 +74,6 @@ async function fixture(t) {
     disableTelemetry: false,
     mcpServerPath: binary,
     autoProvision: false,
-    installRoot: join(dir, 'install-root'),
     toolkitRoots: [toolkit],
     skillGroups: [],
     extensionFiles: [],

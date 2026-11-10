@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { cloneToolkit, proxyFromEnvironment, TOOLKIT_REPOS } from '../lib/provision.js'
+import { cloneToolkit, proxyFromEnvironment, TOOLKIT_REPOS, updateToolkit } from '../lib/provision.js'
+import { discoverToolkits } from '../lib/toolkit.js'
 
 /** The URL a clone invocation is pointed at, and its destination. */
 function cloneTarget(args) {
@@ -154,4 +155,66 @@ test('reads a proxy URL out of the environment, ignoring blank values', () => {
   assert.equal(proxyFromEnvironment({ HTTP_PROXY: 'http://127.0.0.1:7890' }), 'http://127.0.0.1:7890')
   assert.equal(proxyFromEnvironment({ HTTPS_PROXY: '   ' }), undefined)
   assert.equal(proxyFromEnvironment({}), undefined)
+})
+
+test('an update replaces the checkout only after a complete clone', async t => {
+  const dataRoot = await makeDataRoot(t)
+  const destination = join(dataRoot, 'toolkits', 'matlab-agentic-toolkit')
+  // The previous checkout: a file the new one must not inherit.
+  await mkdir(destination, { recursive: true })
+  await writeFile(join(destination, 'old.txt'), 'old')
+  const incoming = `${destination}.incoming`
+
+  const cloned = await updateToolkit({
+    kind: 'matlab',
+    dataRoot,
+    routes: [null],
+    run: async (_command, args) => {
+      const target = args[args.length - 1]
+      assert.notEqual(target, destination, 'the live checkout is never the clone target')
+      await mkdir(join(target, 'skills-catalog'), { recursive: true })
+      await writeFile(join(target, 'new.txt'), 'new')
+    },
+    log: () => {},
+  })
+
+  assert.equal(cloned.root, destination)
+  assert.equal(cloned.route, null)
+  assert.equal(await exists(join(destination, 'new.txt')), true)
+  assert.equal(await exists(join(destination, 'old.txt')), false)
+  assert.equal(await exists(incoming), false)
+})
+
+test('a failed update keeps the previous checkout and its files', async t => {
+  const dataRoot = await makeDataRoot(t)
+  const destination = join(dataRoot, 'toolkits', 'matlab-agentic-toolkit')
+  await mkdir(destination, { recursive: true })
+  await writeFile(join(destination, 'old.txt'), 'old')
+
+  await assert.rejects(
+    () => updateToolkit({
+      kind: 'matlab',
+      dataRoot,
+      routes: ['https://gh-proxy.com', null],
+      run: async () => {
+        throw new Error('early EOF')
+      },
+      log: () => {},
+    }),
+    /could not update https:\/\/github\.com\/matlab\/matlab-agentic-toolkit\.git: gh-proxy\.com: early EOF; direct: early EOF\. The previous checkout was left untouched\./u,
+  )
+
+  assert.equal(await exists(join(destination, 'old.txt')), true)
+  assert.equal(await exists(`${destination}.incoming`), false)
+})
+
+test('a half-written incoming checkout is not a toolkit', async t => {
+  const dataRoot = await makeDataRoot(t)
+  const incoming = join(dataRoot, 'toolkits', 'matlab-agentic-toolkit.incoming')
+  await mkdir(join(incoming, 'skills-catalog', 'core', 'core-skill'), { recursive: true })
+  await writeFile(join(incoming, 'skills-catalog', 'core', 'core-skill', 'SKILL.md'), '---\nname: core-skill\ndescription: d\n---\n')
+  await writeFile(join(incoming, 'manifest.yaml'), 'display-name: "MATLAB"\nskill-groups:\n  - name: core\n    path: skills-catalog/core\n')
+
+  const toolkits = await discoverToolkits({ dataRoots: [dataRoot] })
+  assert.deepEqual(toolkits, [])
 })
