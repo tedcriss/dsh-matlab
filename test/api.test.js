@@ -245,3 +245,60 @@ test('state carries the last update check and the progress kind', () => {
   assert.equal(view.progress.kind, 'update')
   assert.equal(view.progress.percent, 50)
 })
+test('waits for the web carrier when it is mounted after the plugin', async () => {
+  // The production symptom: activation happens before webServer exists, so a
+  // plain ctx.get('webServer') check registers nothing and the page sees 404.
+  const pending = []
+  const state = fakeState({})
+  state.ctx = {
+    get: () => undefined,
+    inject: (deps, callback) => {
+      pending.push({ deps, callback })
+    },
+    effect: factory => factory(),
+  }
+  mountPluginApi(state)
+  assert.equal(pending.length, 1, 'the plugin must inject the carrier instead of giving up')
+  assert.deepEqual(pending[0].deps, ['webServer'])
+
+  const registered = []
+  const webServer = {
+    register: route => {
+      registered.push(route)
+      return () => {}
+    },
+  }
+  pending[0].callback({
+    webServer,
+    effect: factory => factory(),
+  })
+
+  assert.deepEqual(registered.map(route => route.path).sort(), Object.values(API_PATHS).sort())
+  const response = await registered.find(route => route.path === API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).plugin, 'dsh-plugin-matlab')
+})
+
+test('disposes its routes with the carrier', async () => {
+  const registered = []
+  const disposed = []
+  const webServer = {
+    register: route => {
+      registered.push(route)
+      return () => disposed.push(route.path)
+    },
+  }
+  let cleanup
+  const state = fakeState({})
+  state.ctx = {
+    get: () => webServer,
+    effect: factory => {
+      cleanup = factory()
+      return cleanup
+    },
+  }
+  mountPluginApi(state)
+  assert.equal(registered.length, 5)
+  cleanup()
+  assert.equal(disposed.length, 5)
+})
