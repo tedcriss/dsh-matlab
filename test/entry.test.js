@@ -88,6 +88,7 @@ test('exports the Cordis plugin contract', () => {
 test('declares the documented configuration fields', () => {
   const fields = Object.keys(plugin.Config.fields).sort()
   assert.deepEqual(fields, [
+    'agentName',
     'autoProvision',
     'disableTelemetry',
     'displayMode',

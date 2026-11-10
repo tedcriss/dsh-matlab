@@ -29,6 +29,7 @@ A first start downloads the binary and clones the toolkit in the background, bec
 | `matlabRoot` | discovered | Which MATLAB the server starts |
 | `displayMode` | `desktop` | `nodesktop` runs without the MATLAB desktop |
 | `toolCallTimeoutMs` | 600000 | Simulations and test suites exceed the DSH default |
+| `agentName` | `DeepSeek` | The name MATLAB prints when the agent connects |
 | `githubProxy` | follows DSH | HTTPS GitHub acceleration prefix; empty reuses DSH's own setting (`DSHM_GITHUB_PROXY` or the market's custom prefix) |
 | `downloadRegion` | `auto` | `china` uses the built-in accelerated routes, `global` goes direct; `auto` follows DSH's market |
 

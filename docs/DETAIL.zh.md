@@ -29,6 +29,7 @@ MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit checkout 属�
 | `matlabRoot` | 自动发现 | 服务启动哪个 MATLAB |
 | `displayMode` | `desktop` | `nodesktop` 不显示 MATLAB 桌面 |
 | `toolCallTimeoutMs` | 600000 | 仿真与测试套件远超 DSH 默认值 |
+| `agentName` | `DeepSeek` | MATLAB 连接时打印的 Agent 名 |
 | `githubProxy` | 沿用 DSH | GitHub 加速前缀；留空则沿用 DSH 自己的设置（`DSHM_GITHUB_PROXY` 或市场里的自定义前缀） |
 | `downloadRegion` | `auto` | `china` 用内置加速线路，`global` 直连；`auto` 跟随 DSH 市场的区域 |
 

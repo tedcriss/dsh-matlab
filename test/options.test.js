@@ -6,6 +6,7 @@ import { resolveOptions } from '../lib/options.js'
 function baseConfig(overrides = {}) {
   return {
     serverName: 'matlab',
+    agentName: 'DeepSeek',
     toolCallTimeoutMs: 600_000,
     failOnStartupError: false,
     matlabRoot: '',
@@ -86,6 +87,14 @@ test('normalizes a githubProxy prefix and rejects one it cannot use', () => {
   for (const broken of ['http://gh-proxy.com', 'ftp://mirror.example', 'https://user:pw@mirror.example', 'https://mirror.example/?a=1']) {
     assert.throws(() => resolveOptions(baseConfig({ githubProxy: broken })), /githubProxy must be an HTTPS prefix/u)
   }
+})
+
+test('names the agent MATLAB displays, and rejects a name that could break the greeting', () => {
+  assert.equal(resolveOptions(baseConfig()).agentName, 'DeepSeek')
+  assert.equal(resolveOptions(baseConfig({ agentName: '  DeepSeek Harness  ' })).agentName, 'DeepSeek Harness')
+  assert.equal(resolveOptions(baseConfig({ agentName: '' })).agentName, 'DeepSeek')
+  assert.throws(() => resolveOptions(baseConfig({ agentName: 'two\nlines' })), /single line of at most 80 characters/u)
+  assert.throws(() => resolveOptions(baseConfig({ agentName: 'x'.repeat(81) })), /single line of at most 80 characters/u)
 })
 
 test('bounds a first-time transfer with a positive budget', () => {

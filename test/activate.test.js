@@ -178,13 +178,53 @@ test('mounts the skill provider and the MCP bridge against MathWorks artifacts',
   const bridge = mounts[1].config
   assert.equal(bridge.transport, 'stdio')
   assert.equal(bridge.serverName, 'matlab')
-  assert.equal(bridge.command, binary)
+  // The client runs the naming bridge, which in turn runs the server binary.
+  assert.equal(bridge.command, process.execPath)
+  assert.match(String(bridge.args[0]), /mcp-bridge\.js$/u)
+  assert.equal(bridge.args[4], binary)
   assert.equal(bridge.toolCallTimeoutMs, 600_000)
   assert.ok(bridge.args.includes('--matlab-session-mode=auto'))
   assert.ok(bridge.args.includes('--matlab-root=/fake/MATLAB/R2025b'))
   assert.ok(bridge.args.includes('--matlab-display-mode=desktop'))
   assert.ok(bridge.args.some(arg => arg.startsWith('--log-folder=')))
   assert.equal(status.probe.ok, true)
+})
+
+test('runs the MCP server through the naming bridge, with the agent name MATLAB shows', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx, mounts } = fakeContext()
+  const probed = []
+  const status = await activate(ctx, baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+    agentName: 'DeepSeek Harness',
+  }), {
+    ...seams(binary),
+    probeMcpServer: async options => {
+      probed.push(options)
+      return { ok: true, tools: [], resources: [] }
+    },
+  })
+
+  const bridge = mounts[1].config
+  assert.equal(bridge.command, process.execPath)
+  assert.match(String(bridge.args[0]), /mcp-bridge\.js$/u)
+  assert.deepEqual(bridge.args.slice(1, 5), ['--client-title', 'DeepSeek Harness', '--', binary])
+  assert.equal(bridge.args[5], '--matlab-session-mode=auto')
+  assert.equal(bridge.env.ELECTRON_RUN_AS_NODE, '1')
+
+  // The startup probe goes through the same bridge, so it cannot greet MATLAB
+  // under the MCP client's package name either.
+  assert.equal(probed.length, 1)
+  assert.equal(probed[0].command, process.execPath)
+  assert.deepEqual(probed[0].args.slice(0, 5), bridge.args.slice(0, 5))
+  assert.equal(status.phase, 'ready')
 })
 
 test('serves the resolved state on the status route', async t => {

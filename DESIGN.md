@@ -211,6 +211,22 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 更新只做一次“当前 → 最新”，没有后台轮询或自动更新：静默替换用户正在依赖的工具属于越权（§4.8 的“不做设置页面”在这里同样适用——每一件影响运行中能力的事都应该由用户按下按钮）。
 
+### 4.13 让 MATLAB 显示 “DeepSeek”：一个只改一条消息的 stdio 桥
+
+MATLAB 把连接方当作一个“客户端”来命名：命令窗口打印“<名字> is connected to MATLAB…”。（桌面标题追加的是固定后缀 `| Agent Connected`，与名字无关。）名字来自 MCP `initialize` 请求的 `clientInfo`——MathWorks 的 `connectionindicator.clientName` 先取 `Title`，为空才取 `Name`。
+
+DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0.0.1" }` 写死在 `new Client(...)` 里，既不发 `title`，也没有任何配置字段可以覆盖；而 `matlab-mcp-server` 只认 MCP 协议里的这一处。于是插件在两者之间放了一个极小的 stdio 桥（`lib/mcp-bridge.js`）：
+
+- 客户端→服务端方向按行解析，只把 `method === "initialize"` 的那一条的 `params.clientInfo.title` 补成 `agentName`；其余行原样返回（不做 JSON 往返），无法理解的输入也不会被改写；
+- 服务端→客户端方向完全不过解析，直接 pipe，所以 MATLAB 代码输出了换行、非 JSON 噪声或大块内容都不受影响；
+- 写入尊重子进程的回压（`write()` 返回 false 时暂停 stdin），`end` 时补发没有换行的最后一行并关闭子进程，SIGTERM/SIGINT 转发给服务端；
+- 桥本身用 `process.execPath` 启动：宿主是 Electron 时配 `ELECTRON_RUN_AS_NODE=1`（已实测该二进制在 node 模式下运行本桥正常），是纯 node 时该变量无副作用，因此不依赖 PATH 上有没有 node；
+- 启动探测也走同一个桥，避免“探测进程先连上 MATLAB、显示成另一个名字”的不一致。
+
+为什么不去打 dsh-mcp-client 的猴子补丁、也不 fork 那个包：那会让插件与另一个包的内部实现绑死，一次升级就可能静默失效；而这条消息是插件**唯一**需要影响的东西，改写点就应该恰好这么小。代价是 stdio 路径上多一个 Node 进程，但它只做行切分与一次 JSON 解析，延迟可忽略，且失败会在连接阶段立刻暴露（探测先替用户发现）。
+
+实测：真实二进制经真实桥初始化后，服务端日志记录 `"client-name":"dsh-plugin-matlab","client-title":"DeepSeek"`，即 `connectionindicator` 会采用 DeepSeek。
+
 ## 5. 失败模式
 
 每条失败都有确定的归属和可读的后果：
@@ -232,6 +248,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 | profile 没有 `settings` 服务 | 503，页面提示改 `cordis.patch.yml` | 极简组合仍然可配置 |
 | 后台准备期间改设置 | 重挂排队到准备完成，日志随后一行 `settings applied` | 不会出现两套挂载 |
 | 检查更新时网络不可用 | 两项各自记录 `error`，页面显示检查失败 | 只读探测，不改变任何东西 |
+| 命名桥无法启动 | 探测/连接失败，报错里带桥的路径与服务端 stderr | 不会假装连上 |
 | 更新时下载中断 | 状态 `failed`，磁盘上的旧副本下次启动仍可使用 | 日志写明原因 |
 | 检查后发现没有更新 | `started: false, upToDate: true` | 页面显示“已是最新” |
 | 探测失败 | 告警；`failOnStartupError` 为真则失败 | `status.probe.error` + stderr |
@@ -282,5 +299,6 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 - **后台挂载依赖 Cordis 的延迟 `ctx.plugin`**：插件被卸载后后台任务若仍在跑，挂载会以 “inactive context” 失败并被记录为 `status.error`，不会污染进程；成功路径已由 `test/activate.test.js` 的“never holds activation”用例覆盖。
 - **设置页的字段集合等于 volatile 集合**：想从页面改一个字段，就得把它标成 `.volatile()`，代价是该字段的变更不再走“重启插件”的默认语义，而由本插件自己重挂（§4.11）。这是有意的交换：页面要即时生效，就必须自己承担重挂的正确性，而重挂路径有测试覆盖；若将来某个字段需要“重启才生效”的语义，就别把它放进页面。
 - **进度对话框不做取消**：一次下载开始后不能在页面里中途取消；关掉对话框只是隐藏，后台继续（这正是“不阻塞启动”的另一面）。要中止只能退出宿主进程。
+- **stdio 路径上多一个桥进程**（§4.13）：只改 initialize，其余透传；如果将来 DSH 的 MCP 客户端支持 `clientInfo.title`，这个桥应当直接删掉。
 - **更新只由用户触发**：没有后台轮询、没有自动更新（§4.12）。想“始终最新”的部署可以自己跑一次 HTTP 调用 `POST /plugin/matlab/update`，但插件不会替人决定。
 - **外部安装器不再参与**：`~/.matlab/agentic-toolkits` 与它的 `config.json` 都不再被读取（§4.4），所以安装器里选的 MATLAB 版本偏好不再影响 DSH；多版本共存时请显式设 `matlabRoot`。

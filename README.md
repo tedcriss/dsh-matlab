@@ -110,6 +110,7 @@ pnpm add file:/path/to/dsh-matlab
 | `downloadRegion` | `auto` | `auto` 跟随 DSH 市场选定的区域；`china` 强制中国区线路；`global` 直连。见下文“首次下载” |
 | `provisionTimeoutMs` | `300000` | 单次首次准备（下载二进制或克隆工具包）的总预算；它只约束后台任务，不占用启动 |
 | `provisionWaitMs` | `0` | 激活最多等首次准备多久（毫秒）。`0` 表示完全不阻塞启动，准备完成后自动挂载 |
+| `agentName` | `DeepSeek` | MATLAB 命令窗口里显示的 Agent 名（单行、≤ 80 字符） |
 | `toolkitRoots` | `[]` | 额外/替代的工具包 checkout；给定时优先（平时不需要，插件用自己的副本） |
 | `skillGroups` | `[]`（全部） | 要加载的技能组；留空或 `['*']` 加载全部组（MATLAB 工具包为 24 组 / 158 个技能），列出组名则只加载这些组 |
 | `extensionFiles` | `[]` | 额外 MCP 工具定义文件（Simulink 工具包的 `tools/tools.json` 会自动带上） |
@@ -197,6 +198,25 @@ matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 by
 预算是硬边界：单次首次准备默认 300 秒，每条线路另有“无数据 30 秒即放弃”的看门狗，`git clone` 还带 `http.lowSpeedLimit/Time`。一条坏线路最多浪费几十秒，不会把启动拖成“打不开”。
 
 前缀只接受 `https://`、不含凭据与查询串——下载的是随后要执行的程序，明文或可改写的线路等于允许中间人替换它。环境变量里的值不合法时只在日志告警并忽略（那是运维的设置，不是本插件的配置）；`githubProxy` 配置不合法会直接激活失败，并给出可用的写法。
+
+## MATLAB 里显示的 Agent 名
+
+MATLAB 通过 MCP 连接时会在命令窗口打印一句话（桌面标题另加一个固定后缀 `| Agent Connected`，不含这个名字）：
+
+```text
+DeepSeek is connected to MATLAB via the MATLAB MCP server.
+Now you can use DeepSeek to work with MATLAB.
+```
+
+这个名字来自 MCP `initialize` 请求里的 `clientInfo`：MATLAB MCP Server 优先用 `clientInfo.title`，没有标题才退回 `clientInfo.name`（见 MathWorks 源码 `connectionindicator.clientName`）。DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `name` 写死成 `dsh-mcp-client` 且不发标题，也没有对应配置项，所以插件在 stdio 之间放了一个**只改这一条消息**的小桥：
+
+- `lib/mcp-bridge.js` 启动真正的 `matlab-mcp-server`，把服务端输出原样转发，只在客户端发来的 `initialize` 里补上 `params.clientInfo.title = agentName`；其他任何帧都逐字节透传。
+- 启动探测（`probe.js`）也走同一个桥，所以无论“先探测还是先连接”触发了 MATLAB 的欢迎语，显示的都是同一个名字。
+- 桥由 `process.execPath`（宿主是 Electron 时加 `ELECTRON_RUN_AS_NODE=1`）运行，因此不依赖 PATH 上有 node。
+
+默认 `agentName: DeepSeek`；在 **设置 → MATLAB → MCP Server → MATLAB 中显示的 Agent 名** 里改，保存后立即重挂 MCP 桥，下一次连接（或下一个 MATLAB 会话）生效。填单行、80 字符以内；含控制字符会被拒绝，因为那会破坏 MATLAB 的显示。
+
+实测（真实二进制 + 真实桥）：服务端自己的日志记录 `"msg":"New client session","client-name":"dsh-plugin-matlab","client-title":"DeepSeek"`。
 
 ## 验证
 

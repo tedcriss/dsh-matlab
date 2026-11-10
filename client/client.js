@@ -78,6 +78,8 @@ window.__ModuleLoader__.load({
         mcpServerPathHint: '留空则自动发现（安装器布局、插件数据目录）或按下方线路下载。',
         serverName: '工具命名空间',
         serverNameHint: '工具会显示为 mcp__<命名空间>__<工具>。',
+        agentName: 'MATLAB 中显示的 Agent 名',
+        agentNameHint: 'MATLAB 命令窗口里显示的名字，例如“… is connected to MATLAB…”。默认 DeepSeek。',
         callTimeout: '单次调用超时（毫秒）',
         callTimeoutHint: '仿真与测试套件很慢，默认 10 分钟。',
         networkTitle: '依赖下载',
@@ -178,6 +180,8 @@ window.__ModuleLoader__.load({
         mcpServerPathHint: 'Empty discovers it (installer layout, plugin data) or downloads it over the routes below.',
         serverName: 'Tool namespace',
         serverNameHint: 'Tools appear as mcp__<namespace>__<tool>.',
+        agentName: 'Agent name shown in MATLAB',
+        agentNameHint: 'The name MATLAB prints when the agent connects. Defaults to DeepSeek.',
         callTimeout: 'Call timeout (ms)',
         callTimeoutHint: 'Simulations and test suites are slow; 10 minutes by default.',
         networkTitle: 'Dependency downloads',
@@ -384,6 +388,7 @@ window.__ModuleLoader__.load({
         initialWorkingFolder: config.initialWorkingFolder ?? '',
         mcpServerPath: config.mcpServerPath ?? '',
         serverName: config.serverName,
+        agentName: config.agentName ?? 'DeepSeek',
         githubProxy: config.githubProxy ?? '',
         displayMode: config.displayMode,
         sessionMode: config.sessionMode,
@@ -536,6 +541,11 @@ window.__ModuleLoader__.load({
           h(TextInput, {
             value: draft.serverName,
             onChange: value => onDraft({ ...draft, serverName: value }),
+          })),
+        h(Field, { label: t('agentName'), hint: t('agentNameHint') },
+          h(TextInput, {
+            value: draft.agentName,
+            onChange: value => onDraft({ ...draft, agentName: value }),
           })),
         h(Field, { label: t('callTimeout'), hint: t('callTimeoutHint') },
           h(NumberInput, {

@@ -25,6 +25,8 @@ export declare const STATUS_PATH = '/plugin/matlab/status'
 export interface ConfigOptions {
   /** MCP namespace; tools appear as `mcp__<serverName>__<tool>`. Defaults to `matlab`. */
   serverName: string
+  /** Name MATLAB shows for the agent behind the MCP connection. Defaults to `DeepSeek`. */
+  agentName: string
   /** Per-call timeout for MATLAB tools in milliseconds. Defaults to 600000. */
   toolCallTimeoutMs: number
   /** Reject plugin activation when the MATLAB tool connection fails. Defaults to false. */
@@ -441,6 +443,7 @@ export declare function parseMcpServerExtensions(text: string): string[] | undef
  */
 export declare function resolveOptions(config: ConfigOptions): {
   serverName: string
+  agentName: string
   toolCallTimeoutMs: number
   failOnStartupError: boolean
   matlabRoot?: string
