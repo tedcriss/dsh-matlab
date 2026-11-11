@@ -1,0 +1,90 @@
+From 859145b7d5e3f4401f1e6b44a435ab9083a24ff7 Mon Sep 17 00:00:00 2001
+From: xuyuntao <xuyuntao@189.cn>
+Date: Wed, 11 Nov 2026 18:15:21 +0800
+Subject: [PATCH] Update tedcriss/dsh-matlab: prebuilt release install, no
+ restart
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+## What this updates
+
+`tedcriss/dsh-matlab` (first listed in #13361, last updated in #14203) — one file, my own entry.
+
+- **`tarball` moves to the floating, version-free form**:
+  `releases/latest/download/dsh-plugin-matlab.tgz` instead of
+  `releases/download/v1.1.9/dsh-plugin-matlab-1.1.9.tgz`. The asset name no longer
+  carries a version, so `latest/download` cannot rot; and this is the shape
+  `contributing.md` documents first. It is also the only shape a market can follow
+  for updates: the archive path of a pinned `download/<tag>/` entry is not
+  recognized as updatable, so the entry kept installing 1.1.9 forever.
+- **The archive is now ~100 KB instead of 793 KB.** The package ships runtime files
+  only (`lib/`, `client/`, `locale/`, `icon.svg`, `cordis.patch.yml`,
+  `screenshots.json`); the settings screenshot and the design docs stay in the
+  repository for the storefront, where `screenshots.json` already points at them.
+  The asset the URL resolves to today is 104,739 bytes with SHA-256
+  `4091a8bd7994bd8d716a890c3a9b60ac5ac814495cfc42a80405eb1b70b42b0c` (v1.2.3).
+- **"DSH must be restarted after installing" is no longer true and is gone.**
+  The market mounts this row live, and activation no longer waits for the server's
+  `--version` read or its startup probe — those two process starts moved to
+  background diagnostics (`lib/activate.js`, `collectDiagnostics`), which is what
+  keeps a live mount inside the market's 10-second budget. A restart is now only
+  the fallback when the market itself reports that its live mount failed.
+- **Route and checksum disclosures are kept**, as added on merge in #14160/#14185:
+  the China region / configured prefix path is still described, and the
+  SHA-256 verification against the release asset's published digest is still there,
+  including the limit that a digest read through a mirror only catches a corrupted
+  or truncated download. The plugin also measures the available prefixes with a
+  `HEAD` before each download and uses the fastest first (`lib/github.js`,
+  `rankRoutes`), which is what the "fastest measured acceleration prefix" sentence
+  says now.
+
+## Review feedback carried forward
+
+- #14160 asked for digest verification; it landed in 1.1.9, and the description no
+  longer says the binary is run unchecked.
+- #14185's mirror-digest caveat is preserved verbatim in meaning.
+- #14195 (closed): `name` stays `tedcriss/dsh-matlab`. No display name is proposed;
+  a friendlier label would need a repository rename and its rename flow, which is
+  out of scope here.
+- #14203 introduced `tarball`; this PR keeps the field and only changes it to the
+  version-free floating URL described above.
+- The package is not on npm, so the store's `version` and `downloads` fields stay
+  empty; the release archive is the prebuilt install path, not a claim of a
+  published npm package.
+
+## Checklist
+
+- [x] Changed one file: `data/plugins/tedcriss__dsh-matlab.yml` (my own entry)
+- [x] `name` is still `owner/repo` (per #14195)
+- [x] `package.json` still declares `dsh.bundle` (`cordis.patch.yml` inserts the
+      `matlab-agentic` row)
+- [x] `tarball` is an https `.tgz` on this repository's own GitHub Release, with a
+      version-free asset name; the pinned v1.1.9 URL is gone
+- [x] Description checked against the code (`autoProvision`, `disableTelemetry`,
+      `rankRoutes`, `collectDiagnostics`)
+- [x] Screenshots still declared in the plugin repository, GitHub-hosted, relative path
+- [x] No README hand-edits
+---
+ data/plugins/tedcriss__dsh-matlab.yml | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/data/plugins/tedcriss__dsh-matlab.yml b/data/plugins/tedcriss__dsh-matlab.yml
+index b0ad106..116e2f1 100644
+--- a/data/plugins/tedcriss__dsh-matlab.yml
++++ b/data/plugins/tedcriss__dsh-matlab.yml
+@@ -1,7 +1,7 @@
+ url: https://github.com/tedcriss/dsh-matlab
+ name: tedcriss/dsh-matlab
+ category: tools
+-tarball: https://github.com/tedcriss/dsh-matlab/releases/download/v1.1.9/dsh-plugin-matlab-1.1.9.tgz
++tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz
+ description:
+-  en: 'Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later, and DSH must be restarted after installing the plugin. By default (autoProvision) it downloads the MathWorks MCP Server binary and installs the newest Agentic Toolkit release on first use. MathWorks telemetry is disabled by default; set disableTelemetry to false to re-enable it. When the download region is China (set in the plugin or by DSH''s market) or a GitHub prefix is configured, the server binary and the toolkit archive are fetched through that prefix first (gh-proxy.com and ghfast.top by default) and then directly. The downloaded server binary is verified against the SHA-256 digest GitHub publishes for its release asset when the release metadata can be read, and a mismatch refuses the install. If api.github.com cannot be reached the digest is read through the same mirror, so the check then only catches a corrupted or truncated download.'
+-  zh: '把 MathWorks 的 MATLAB Agentic Toolkit 技能与 MATLAB MCP Server 工具接入 DeepSeek Harness。需要本机 MATLAB R2021a 及以上，且安装插件后需重启 DSH。默认（autoProvision）首次使用时会下载 MathWorks MCP Server 并安装工具包的最新 Release。MathWorks 遥测默认关闭，把 disableTelemetry 设为 false 才会重新开启。下载区域为 china（插件里设置或 DSH 市场已选）或配置了 GitHub 前缀时，MCP Server 二进制和工具包压缩包会先经该前缀（默认 gh-proxy.com、ghfast.top）下载，失败再直连。能读取 Release 元数据时，下载的 MCP Server 二进制会按 GitHub 公布的资产 SHA-256 摘要校验，不一致就拒绝安装。api.github.com 连不上时摘要也经同一个镜像读取，这时的校验只能发现下载损坏或被截断。'
+\ No newline at end of file
++  en: 'Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later. Installs from the plugin''s own prebuilt release archive. A DSH restart is usually unnecessary: the market mounts the plugin live, and a page refresh shows the MATLAB settings page; restart only when the market reports that the live mount failed. By default (autoProvision) it downloads the MathWorks MCP Server binary and installs the newest Agentic Toolkit release on first use. With the China download region or a configured GitHub prefix, both are fetched through the fastest measured acceleration prefix first (the plugin''s own, DSH''s market setting, or the built-in gh-proxy.com and ghfast.top routes) and then directly. The downloaded server binary is verified against the SHA-256 digest GitHub publishes for its release asset when the release metadata can be read, and a mismatch refuses the install; if api.github.com cannot be reached the digest is read through the same mirror, so the check then only catches a corrupted or truncated download. MathWorks telemetry is disabled by default; set disableTelemetry to false to re-enable it.'
++  zh: '把 MathWorks 的 MATLAB Agentic Toolkit 技能与 MATLAB MCP Server 工具接入 DeepSeek Harness。需要本机 MATLAB R2021a 及以上。从插件自己的预构建 Release 包安装。通常不需要重启 DSH：市场会热挂载插件，刷新页面即可看到 MATLAB 设置页；只有市场提示热挂载失败时才需要重启。默认（autoProvision）首次使用时会下载 MathWorks MCP Server 并安装工具包的最新 Release。下载区域为 china 或配置了 GitHub 前缀时，两者都会先经实测最快的加速前缀（插件自己的、DSH 市场的，或中国区内置的 gh-proxy.com、ghfast.top）下载，失败再直连。能读取 Release 元数据时，下载的 MCP Server 二进制会按 GitHub 公布的资产 SHA-256 摘要校验，不一致就拒绝安装；api.github.com 连不上时摘要也经同一个镜像读取，这时的校验只能发现下载损坏或被截断。MathWorks 遥测默认关闭，把 disableTelemetry 设为 false 才会重新开启。'
+-- 
+2.56.0.windows.2
+
