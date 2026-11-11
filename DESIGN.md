@@ -239,6 +239,15 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 
 实测：真实二进制经真实桥初始化后，服务端日志记录 `"client-name":"dsh-plugin-matlab","client-title":"DeepSeek"`，即 `connectionindicator` 会采用 DeepSeek。
 
+**同一个桥还负责“按对话的工作区目录”。** `useWorkspaceFolder` 打开后，MATLAB 的当前文件夹应当跟着**发起调用的那个对话**走，而一个 MATLAB 会话只有一个当前文件夹——它不能是服务端启动参数（那样只对第一个对话成立）。MathWorks 的 `evaluate_matlab_code` 恰好有一个 `project_path` 参数，语义就是“执行前把当前文件夹设到这里”，所以文件夹应该**随调用传递**：
+
+- 宿主在 `tools/pre-execute` 里看到真正发起调用的 agent（`exec.agent.session`），用 DSH 的 `workingDirectory.get(session)` 取该对话的目录，写进一个很小的记录文件（`$DSH_HOME/matlab/workspace-folder.json`）；
+- 桥在每条 `tools/call` 上读这条记录，只在工具是 `evaluate_matlab_code`、且模型没有自己给 `project_path` 时补上它；其它工具（`run_matlab_file` 等）的 schema 没有这个参数，模型自己提供文件夹时也以模型为准；
+- 同步写文件是刻意的：`pre-execute` 返回 `next()` 之前记录必须落盘，异步写会与紧接着的调用抢跑。写失败只是丢掉一次提示，绝不阻断工具调用；
+- 后写覆盖先写，这与设定本身的语义一致：**一个 MATLAB 只有一份当前文件夹**，两个对话同时调用时，谁最后调用，文件夹就属于谁。
+
+为什么不在 `tools/pre-execute` 里直接改参数：DSH 在 `createExecution` 里就把 `arguments` 深冻结了，`pre-execute` 只能回答 allow/ask/deny；参数只能在传输层改，而这正好是这座桥已经存在的位置。翻车面也小：记录文件缺失或损坏时，桥原样转发调用。
+
 ## 5. 失败模式
 
 每条失败都有确定的归属和可读的后果：

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, stat, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -823,6 +823,51 @@ test('a toolkit the user configured is never compared with a release or replaced
   // folder the user pointed at, so nothing offers to overwrite it.
   const outcome = (await postJson(route(API_PATHS.update), {})).json
   assert.equal(outcome.started, false)
+})
+
+test('workspace mode drops the start folder and records the conversation folder per call', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx, mounts, listeners } = fakeContext({
+    skills: {},
+    // The service a live host publishes: one folder per session.
+    workingDirectory: { get: () => 'C:\\work\\project' },
+  })
+
+  await activate(ctx, baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+    initialWorkingFolder: 'C:\\ignored',
+    useWorkspaceFolder: true,
+  }), seams(binary))
+
+  const bridge = mounts[1].config
+  const index = bridge.args.indexOf('--workspace-file')
+  assert.ok(index > 0, 'the bridge must be told where the record lives')
+  const workspaceFile = bridge.args[index + 1]
+  assert.equal(workspaceFile, join(dir, 'dsh-home', 'matlab', 'workspace-folder.json'))
+  // One MATLAB serves every conversation, so a start-time folder would be a lie.
+  assert.equal(bridge.args.some(arg => String(arg).startsWith('--initial-working-folder=')), false)
+
+  const listener = listeners.find(entry => entry.name === 'tools/pre-execute')
+  assert.ok(listener, 'the host must see tool calls to know the conversation folder')
+  const verdict = await listener.callback(
+    { name: 'mcp__matlab__evaluate_matlab_code', agent: { session: {} } },
+    async () => ({ kind: 'allow' }),
+  )
+  assert.deepEqual(verdict, { kind: 'allow' })
+  const record = JSON.parse(await readFile(workspaceFile, 'utf8'))
+  assert.equal(record.cwd, 'C:\\work\\project')
+
+  // A tool outside this server leaves the record alone.
+  await writeFile(workspaceFile, JSON.stringify({ cwd: 'C:\\previous' }))
+  await listener.callback({ name: 'pwsh', agent: { session: {} } }, async () => ({ kind: 'allow' }))
+  assert.deepEqual(JSON.parse(await readFile(workspaceFile, 'utf8')), { cwd: 'C:\\previous' })
 })
 
 /** Whether a path exists, whatever kind it is. */

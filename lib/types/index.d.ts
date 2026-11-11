@@ -48,13 +48,15 @@ export interface ConfigOptions {
   sessionMode: 'auto' | 'existing' | 'new'
   /** Folder MATLAB starts in; empty uses the DSH working directory. */
   initialWorkingFolder: string
+  /** Use the calling conversation's working folder for each MATLAB call instead. */
+  useWorkspaceFolder: boolean
   /** Start MATLAB as soon as the MCP server starts. */
   initializeMatlabOnStartup: boolean
   /** Pass `--disable-telemetry` to the MATLAB MCP Server. */
   disableTelemetry: boolean
   /** Path to the `matlab-mcp-server` executable; empty discovers or downloads it. */
   mcpServerPath: string
-  /** Download the server binary and clone the toolkit when absent. */
+  /** Download the binary and the newest toolkit release when absent. */
   autoProvision: boolean
   /** HTTPS GitHub acceleration prefix, for example `https://gh-proxy.com`; empty follows DSH's own setting. */
   githubProxy: string
@@ -576,6 +578,7 @@ export declare function resolveOptions(config: ConfigOptions): {
   displayMode: 'desktop' | 'nodesktop'
   sessionMode: 'auto' | 'existing' | 'new'
   initialWorkingFolder?: string
+  useWorkspaceFolder: boolean
   initializeMatlabOnStartup: boolean
   disableTelemetry: boolean
   mcpServerPath?: string

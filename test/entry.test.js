@@ -110,6 +110,7 @@ test('declares the documented configuration fields', () => {
     'statusRoute',
     'toolCallTimeoutMs',
     'toolkitRoots',
+    'useWorkspaceFolder',
     'watchSkills',
   ])
 })

@@ -13,6 +13,7 @@ function baseConfig(overrides = {}) {
     displayMode: 'desktop',
     sessionMode: 'auto',
     initialWorkingFolder: '',
+    useWorkspaceFolder: false,
     initializeMatlabOnStartup: false,
     disableTelemetry: false,
     mcpServerPath: '',
@@ -36,6 +37,12 @@ test('treats an empty string as "discover it", not as a value', () => {
   assert.equal(options.matlabRoot, undefined)
   assert.equal(options.mcpServerPath, undefined)
   assert.equal(options.initialWorkingFolder, undefined)
+  assert.equal(options.useWorkspaceFolder, false)
+  assert.equal(resolveOptions(baseConfig({ useWorkspaceFolder: true })).useWorkspaceFolder, true)
+})
+
+test('keeps a non-boolean workspace flag off instead of trusting it', () => {
+  assert.equal(resolveOptions(baseConfig({ useWorkspaceFolder: 'yes' })).useWorkspaceFolder, false)
 })
 
 test('trims whitespace-only settings to absence', () => {

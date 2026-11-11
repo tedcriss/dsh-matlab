@@ -108,6 +108,7 @@ pnpm add file:/path/to/dsh-matlab
 | `sessionMode` | `auto` | `auto` 优先接管已 `shareMATLABSession()` 的会话，否则新开；`new` 总是新开；`existing` 只接管 |
 | `displayMode` | `desktop` | `nodesktop` 表示不弹 MATLAB 桌面 |
 | `initialWorkingFolder` | DSH 工作目录 | MATLAB 启动目录 |
+| `useWorkspaceFolder` | `false` | 勾选后忽略 `initialWorkingFolder`：每次调用 `evaluate_matlab_code` 时用**该对话的工作区（项目）目录**作为 MATLAB 当前文件夹（设置页“起始目录”上方开关） |
 | `initializeMatlabOnStartup` | `false` | 为 `true` 时 MCP 服务一启动就拉起 MATLAB |
 | `disableTelemetry` | `true` | 透传 `--disable-telemetry=true`；默认关闭遥测 |
 | `mcpServerPath` | 自动 | 指定 `matlab-mcp-server` 可执行文件；留空则发现或下载 |
@@ -128,7 +129,7 @@ pnpm add file:/path/to/dsh-matlab
 
 插件自带 Web 界面（纯 ESM 客户端模块，无构建步骤）：
 
-- **设置 → MATLAB**（侧栏设置面板里的一页）：连接状态（阶段、插件版本、MATLAB 根、MCP Server 路径、实际线路、探测到的工具数）；**依赖**（一张三列表：模块 / 本地 Tag / 最新 Tag，加三个按钮：检查更新、下载最新依赖、清空本地依赖）；**技能组开关**（可上下滚动的两列列表：组名 + 技能数；默认全选，全部勾选时保存为“全部”，将来新增的组自动纳入；标“必需”的组锁定为已选，不能关闭）；MATLAB 启动参数（根目录、启动方式与会话模式为单行单选、起始目录、启动即拉起、遥测默认关闭）；MCP Server（可执行文件路径、命名空间、调用超时）；依赖下载（加速前缀、下载区域为单行单选、预算、启动等待、监视工具包）。**保存 / 放弃修改固定在页面底部**，滚动到任何位置都能看到。
+- **设置 → MATLAB**（侧栏设置面板里的一页）：连接状态（阶段、插件版本、MATLAB 根、MCP Server 路径、实际线路、探测到的工具数）；**依赖**（一张三列表：模块 / 本地 Tag / 最新 Tag，加三个按钮：检查更新、下载最新依赖、清空本地依赖）；**技能组开关**（可上下滚动的两列列表：组名 + 技能数；默认全选，全部勾选时保存为“全部”，将来新增的组自动纳入；标“必需”的组锁定为已选，不能关闭）；MATLAB 启动参数（根目录、启动方式与会话模式为单行单选、“使用当前对话的工作区目录作为起始目录”开关、起始目录（开关勾选时禁用）、启动即拉起、遥测默认关闭）；MCP Server（可执行文件路径、命名空间、调用超时）；依赖下载（加速前缀、下载区域为单行单选、预算、启动等待、监视工具包）。**保存 / 放弃修改固定在页面底部**，滚动到任何位置都能看到。
 - **右下角进度对话框**：首次准备、或缺口被补齐时出现，显示“正在下载工具包发布包 / 正在下载二进制”、字节进度（镜像声明长度时是确定进度，否则流动条）、当前线路；可以关掉（后台继续），失败可重试。它只是提示，不挡住应用。
 
 设置保存后**立即生效**：页面通过 DSH 的 `settings` 服务写入 profile 补丁，DSH 把 volatile 变更提交给运行中的插件，插件收到 `loader/volatile-update` 后重新挂载受影响的部分（技能目录、MCP 桥）。直接在 `cordis.patch.yml` 里改这些字段效果相同。
