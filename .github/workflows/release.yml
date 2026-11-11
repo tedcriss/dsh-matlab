@@ -27,6 +27,7 @@ jobs:
         run: npm test
       - name: Pack the plugin
         run: |
+          mkdir -p dist
           npm pack --pack-destination dist
           version=$(node -p "require('./package.json').version")
           # The asset name carries no version: `latest/download/` takes the name
