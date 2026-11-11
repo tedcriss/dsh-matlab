@@ -33,6 +33,7 @@ window.__ModuleLoader__.load({
         phase: '阶段',
         matlab: 'MATLAB',
         server: 'MCP Server',
+        pluginVersion: '插件版本',
         route: '下载线路',
         tools: '工具',
         resources: '资源',
@@ -139,6 +140,7 @@ window.__ModuleLoader__.load({
         phase: 'Phase',
         matlab: 'MATLAB',
         server: 'MCP Server',
+        pluginVersion: 'Plugin version',
         route: 'Route',
         tools: 'Tools',
         resources: 'Resources',
@@ -276,7 +278,11 @@ window.__ModuleLoader__.load({
 
     const STYLES = `
 .mp-page{display:flex;flex-direction:column;gap:18px;max-width:760px;padding:4px 2px 0;color:var(--dsw-alias-label-primary)}
-.mp-savebar{position:sticky;bottom:-1px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px;padding:12px 0 14px;background:var(--dsw-alias-bg-base);border-top:1px solid var(--dsw-alias-border-l1);box-shadow:0 -12px 20px -20px rgba(0,0,0,.45)}
+/* The settings scroller keeps a 24px bottom padding and sticky aligns to its
+   content edge, so the bar is pushed down by that padding and paints a matching
+   solid shadow below it — otherwise the page shows through under the bar. Both
+   values degrade quietly if the host changes its padding. */
+.mp-savebar{position:sticky;bottom:-24px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px;padding:12px 0 14px;background:var(--dsw-alias-bg-base);border-top:1px solid var(--dsw-alias-border-l1);box-shadow:0 -12px 20px -20px rgba(0,0,0,.45),0 40px 0 0 var(--dsw-alias-bg-base)}
 .mp-card{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
 .mp-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .mp-card-title{font-size:14px;font-weight:600;margin:0}
@@ -460,6 +466,8 @@ window.__ModuleLoader__.load({
             h(Badge, { tone: phaseTone(state.phase) }, state.phase),
             h(Button, { onClick: onRefresh }, t('refresh')))),
         h('dl', { className: 'mp-kv' },
+          h('dt', null, t('pluginVersion')),
+          h('dd', null, state.version ?? t('none')),
           h('dt', null, t('matlab')),
           h('dd', null, state.matlab?.root ?? t('notDetected')),
           h('dt', null, t('server')),

@@ -68,6 +68,7 @@ function fakeContext({ settings, webServer } = {}) {
 function fakeState(overrides = {}) {
   const status = {
     plugin: 'dsh-plugin-matlab',
+    version: '1.1.2',
     phase: 'ready',
     matlab: undefined,
     server: { path: 'C:\\bin\\matlab-mcp-server.exe', source: 'download', version: 'v0.16.0', downloaded: true, route: 'gh-proxy.com' },
@@ -123,6 +124,8 @@ test('reports the live state the Settings page renders', () => {
   state.ctx = fakeContext().ctx
   const view = stateView(state)
   assert.equal(view.phase, 'ready')
+  // The status card's first row is the plugin's own version.
+  assert.equal(view.version, '1.1.2')
   assert.equal(view.config.matlabRoot, '')
   assert.equal(view.config.sessionMode, 'auto')
   assert.equal(view.groups.length, 2)

@@ -12,7 +12,7 @@
 
 > 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。商店提交材料（条目 YAML、PR 文案）见 [docs/STORE.md](docs/STORE.md)。
 
-![设置 → MATLAB 整页长截图：连接状态、带本地/最新 Release Tag 的“更新依赖”三列表、24 个技能组开关、启动参数、MCP Server、依赖下载，以及固定在底部的保存条](assets/settings.png)
+![设置 → MATLAB 整页长截图：带插件版本号的状态卡、紧跟其后的“更新依赖”三列表（本地 / 最新 Release Tag）、24 个技能组开关、启动参数、MCP Server、依赖下载，以及固定在底部的保存条](assets/settings.png)
 
 ---
 
