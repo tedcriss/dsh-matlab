@@ -899,30 +899,78 @@ window.__ModuleLoader__.load({
           : null)
     }
 
-    /** The nav glyph, the same mark the package icon uses. */
+    /**
+     * The MathWorks MATLAB mark, the same vector artwork `icon.svg` ships.
+     *
+     * The four paths and three gradients are the official logo as MATLAB
+     * R2023b draws it (`logo`): the L-shaped membrane surface, its shaded
+     * ridge, and the blue edge. Keeping it inline means the Settings section
+     * needs no extra asset request and stays sharp at any size.
+     */
     function PluginIcon({ size }) {
-      const id = 'mp-grad'
+      const px = size ?? 16
       return h('svg', {
         viewBox: '0 0 64 64',
-        width: size ?? 16,
-        height: size ?? 16,
+        width: px,
+        height: px,
         'aria-hidden': true,
         style: { display: 'block' },
       },
-      h('defs', null,
-        h('linearGradient', { id, x1: '0', y1: '0', x2: '1', y2: '1' },
-          h('stop', { offset: '0', stopColor: '#e8710a' }),
-          h('stop', { offset: '1', stopColor: '#c4161c' }))),
-      h('rect', { x: '2', y: '2', width: '60', height: '60', rx: '14', fill: `url(#${id})` }),
-      h('path', {
-        d: 'M14 44c6-2 9-10 12-16s6-10 11-10c4 0 6 3 6 6',
-        fill: 'none',
-        stroke: '#fff',
-        strokeWidth: '4',
-        strokeLinecap: 'round',
-      }),
-      h('path', { d: 'M14 50h36', stroke: '#fff', strokeOpacity: '.55', strokeWidth: '3', strokeLinecap: 'round' }),
-      h('circle', { cx: '45', cy: '24', r: '3.4', fill: '#fff' }))
+      h('g', { transform: 'translate(3.2 3.2) scale(3.6)' },
+        h('defs', null,
+          h('radialGradient', {
+            id: 'mp-logo-surface',
+            cx: '25.5117',
+            cy: '23.835',
+            r: '20.307',
+            gradientTransform: 'matrix(0.8188 0.4836 -0.6511 1.008 -5.302 -34.4656)',
+            gradientUnits: 'userSpaceOnUse',
+          },
+          h('stop', { offset: '0.3308', stopColor: '#73C8EC' }),
+          h('stop', { offset: '0.4484', stopColor: '#128DBB' }),
+          h('stop', { offset: '0.4836', stopColor: '#D16432' }),
+          h('stop', { offset: '0.5995', stopColor: '#D15F2C' }),
+          h('stop', { offset: '0.7588', stopColor: '#D0511A' }),
+          h('stop', { offset: '0.9264', stopColor: '#CF3D00' })),
+          h('linearGradient', {
+            id: 'mp-logo-shade',
+            gradientUnits: 'userSpaceOnUse',
+            x1: '9.8174',
+            y1: '0.3408',
+            x2: '9.8174',
+            y2: '16.0005',
+          },
+          h('stop', { offset: '0', stopColor: '#A32E17' }),
+          h('stop', { offset: '0.2308', stopColor: '#972D13' }),
+          h('stop', { offset: '0.645', stopColor: '#78290A' }),
+          h('stop', { offset: '1', stopColor: '#582500' })),
+          h('linearGradient', {
+            id: 'mp-logo-edge',
+            gradientUnits: 'userSpaceOnUse',
+            x1: '5.9292',
+            y1: '0.0004882812',
+            x2: '5.9292',
+            y2: '11.3101',
+          },
+          h('stop', { offset: '0', stopColor: '#3088CD' }),
+          h('stop', { offset: '0.5471', stopColor: '#185991' }),
+          h('stop', { offset: '0.8957', stopColor: '#0B3F6F' }))),
+        h('path', {
+          fill: 'url(#mp-logo-surface)',
+          d: 'M15.609,11c-0.516-1.479-0.852-2.896-1.42-4.558c-0.283-0.837-0.588-1.782-0.869-2.627 c-0.305-0.914-0.844-1.743-1.271-2.52c-0.174-0.327-0.611-1.086-1.078-1.084c-0.141,0-0.244,0.067-0.33,0.13 C10.336,0.55,7.509,4.558,7.18,4.691C7.079,4.736,6.953,4.753,6.838,4.792c-0.258,0.1-0.447,0.215-0.648,0.389 c-0.33,0.301-0.643,0.695-0.923,1.06c-0.056,0.077-0.619,0.886-0.704,1L0.376,9.018c0,0,4.991,3.036,5.32,3.866 c0.228,0.589,1.374,2.248,1.601,2.847c0.752-0.179,1.227-0.946,1.721-1.389c0.538-0.481,1.021-1.125,1.475-1.699 c0.883-1.113,1.234-1.829,2.703-2.005c0.398-0.048,1.141,0.176,1.322,0.331c0.271,0.228,0.623,0.372,0.883,0.605 C15.859,11.984,15.775,11.496,15.609,11z',
+        }),
+        h('path', {
+          fill: '#F5AE81',
+          d: 'M12.203,4.792c0.172,1.534-0.061,2.784-0.508,2.807c-0.459,0.022-0.969-1.203-1.141-2.729 c-0.164-1.534,0.064-2.782,0.51-2.807C11.523,2.04,12.031,3.256,12.203,4.792z',
+        }),
+        h('path', {
+          fill: 'url(#mp-logo-shade)',
+          d: 'M15.955,11.295c-0.336-1.108-2.908-9.844-4.299-10.954L10.82,0.506l0.078,0.209 c0.055-0.032,0.117-0.031,0.148-0.016c0.768,0.302,2.721,6.247,2.721,6.247c0.453,1.521,0.873,2.774,1.227,3.774 c-0.51-0.331-1.057-0.534-1.578-0.55c-1.822-0.055-2.602,1.358-3.836,2.854c-0.549,0.674-1.406,1.705-1.984,2.124 c-0.963-2.684-2.767-3.931-3.353-4.273L3.634,11.31l0.021,0.008c0,0,2.509,1.195,3.487,4.682C7.156,15.999,7.174,16,7.189,16 c1.655,0,4.287-5.479,6.227-5.171c0.584,0.093,1.295,0.459,1.896,0.979C15.633,12.069,16.158,11.971,15.955,11.295z',
+        }),
+        h('path', {
+          fill: 'url(#mp-logo-edge)',
+          d: 'M11.164,0.016c-0.037-0.009-0.068-0.015-0.102-0.015C9.627-0.061,8.016,4.03,6.695,4.736 C5.328,5.465,5.242,6.155,4.798,6.762C4.359,7.374,0,8.915,0,8.915l3.634,2.395l0.521-0.363c0.769-0.495,2.087-1.48,3.251-3.163 c1.611-2.31,2.594-5.084,3.062-6.41c0,0,0.086-0.239,0.143-0.349c0.084-0.154,0.188-0.263,0.326-0.319 c0.367-0.192,0.922-0.155,0.922-0.155C11.672,0.312,11.375,0.063,11.164,0.016z M3.609,10.481L1.485,9.085 C2.663,8.644,3.82,8.157,4.579,7.731l1.233,0.93C4.931,9.599,4.094,10.188,3.609,10.481z M6.822,7.419 C6.641,7.683,6.453,7.924,6.26,8.155L5.181,7.342c0.078-0.07,0.147-0.139,0.188-0.2c0.124-0.163,0.225-0.335,0.326-0.52 c0.258-0.451,0.479-0.846,1.338-1.305c0.655-0.349,1.326-1.202,2.022-2.162C8.523,4.459,7.79,6.031,6.822,7.419z',
+        })))
     }
 
     const name = NS

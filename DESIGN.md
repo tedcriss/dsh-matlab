@@ -261,6 +261,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 ## 6. 兼容性与版本
 
 - 插件对 DSH 侧只依赖两个公开包：`@deepseek-ai/dsh-mcp-client` 的 `StdioConfig`（`transport/serverName/command/args/env/cwd/toolCallTimeoutMs/failOnStartupError`）与 `@deepseek-ai/dsh-skill-filesystem` 的 `Config`（`providerName/includeDefaultRoots/customSkillDirs/watch`）。二者都是稳定文档化字段；
+- 插件自身的版本只在 `package.json` 里写一次：`lib/version.js` 读它，MCP 探测的 `clientInfo` 与状态路由的 `plugin`/`version` 都取自那里，发版时不必改第二处；
 - `peerDependencies` 用 `*`：真实的解析由 DSH 运行时的安装范围（installation scope）提供，写死小版本反而会在 DSH 升级时阻止加载；
 - MATLAB 侧只依赖**文档化的 CLI 与文件格式**：`--matlab-*` 参数、`bin/` 布局、Release 资产名、`manifest.yaml` 的 `skill-groups` / `mcp-server-extensions`、`skills-catalog/<group>/<skill>/SKILL.md`。这些是 MathWorks 公开契约，插件不含版本号判断，因此新版工具包无需改插件；
 - `manifest.yaml` 的解析是**目标式**的：只抽两个 section，读不懂就回退到扫描 `skills-catalog/` 目录，永远不因为格式演进把技能丢掉。

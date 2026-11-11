@@ -1,8 +1,12 @@
 {
   "name": "dsh-plugin-matlab",
-  "version": "0.1.0",
-  "description": "Bring MathWorks MATLAB Agentic Toolkit skills and MATLAB MCP Server tools to DeepSeek Harness by pointing at what MATLAB already ships.",
+  "version": "1.0.0",
+  "description": "Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later. By default (autoProvision) it downloads the MathWorks MCP Server and clones the toolkit on first use, and MathWorks telemetry stays on unless disableTelemetry is set.",
   "license": "MIT",
+  "author": {
+    "name": "小涛29",
+    "email": "xuyuntao@189.cn"
+  },
   "icon": "./icon.svg",
   "repository": {
     "type": "git",

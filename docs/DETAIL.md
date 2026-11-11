@@ -37,6 +37,6 @@ On a network where github.com is slow, the first start reuses the acceleration D
 
 ## Diagnosis
 
-`GET /plugin/matlab/status` reports the resolved MATLAB root, the binary and its version, the probe result (tool and resource names), the loaded skill groups with skill counts, the GitHub acceleration in force (`github.region` / `github.routes` / `server.route`), and the warnings raised during activation.
+`GET /plugin/matlab/status` reports the plugin's own name and version (read from `package.json`), the resolved MATLAB root, the binary and its version, the probe result (tool and resource names), the loaded skill groups with skill counts, the GitHub acceleration in force (`github.region` / `github.routes` / `server.route`), and the warnings raised during activation.
 
 Full reference: [README](../README.md). Design rationale: [DESIGN](../DESIGN.md).

@@ -8,6 +8,8 @@
 
 插件本身**不实现任何 MATLAB 能力**。它只做三件连接性的事：**找到** MathWorks 的二进制与技能目录，**校验**它能跑通（一次 MCP 握手），**挂载** DSH 自带的两个传输层（MCP 桥、技能目录提供方）。工具与技能内容全部是 MathWorks 原件，不复制、不改写、不重新打包。
 
+> **前置与默认行为**（与 DSH 商店条目一致）：需要本机 MATLAB **R2021a 或更新**；默认 `autoProvision: true`，首次使用时下载 MathWorks MCP Server 并克隆工具包；除非设置 `disableTelemetry: true`，MathWorks 遥测保持开启。
+
 > 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。
 
 ---
@@ -238,6 +240,8 @@ Now you can use DeepSeek to work with MATLAB.
 
    ```json
    {
+     "plugin": "dsh-plugin-matlab",
+     "version": "1.0.0",
      "phase": "ready",
      "installer": { "configFound": true, "matlabRoot": "C:\\Program Files\\MATLAB\\R2023b" },
      "server": { "path": "...\\bin\\matlab-mcp-server.exe", "version": "github.com/matlab/matlab-mcp-server v0.16.0" },
@@ -390,7 +394,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 113 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 128 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
@@ -403,12 +407,12 @@ node --test          # 113 个用例；插件本身无构建步骤、无运行�
   - `lib/api.js` — 设置页与进度对话框用的 JSON 路由（`/plugin/matlab/{state,progress,config,provision}`）
   - `client/client.js` — 设置页（`settings.section`）与进度对话框（`shell.overlay`）
   - `lib/toolkit.js` + `lib/yaml-mini.js` — 读 MathWorks `manifest.yaml`（技能组、`mcp-server-extensions`）
-  - `lib/installer.js` — 读 `config.json`（MATLAB 版本、服务版本）
   - `lib/matlab-root.js` / `lib/mcp-binary.js` / `lib/release.js` — 发现与获取
   - `lib/github.js` — 沿用 DSH 的 GitHub 加速（区域、前缀、回退链，以及 profile 市场状态的读取）
   - `lib/args.js` — 把设置翻译成 MATLAB MCP Server 官方参数（含 `existing` 模式的互斥规则）
   - `lib/probe.js` — 一次性 stdio MCP 握手
+  - `lib/version.js` — 插件自身版本与包名的唯一来源（读 `package.json`）
 
 ## 许可
 
-插件代码 MIT。MATLAB、Simulink 及相关工具包名称是 The MathWorks, Inc. 的商标；本插件不包含也不重新分发其任何内容，只调用 MathWorks 公开发布的产物。技能与工具的使用受 MathWorks 许可条款约束。
+插件代码 MIT，作者 小涛29（xuyuntao@189.cn）。`icon.svg` 与设置页里的图标是 The MathWorks, Inc. 的 MATLAB 标志：矢量取自本机 MATLAB R2023b 自带的图形资源，仅用于标识本插件接入的是 MATLAB。该标志是 MathWorks 的商标，不在 MIT 许可范围内，也不表示 MathWorks 对本插件的认可。MATLAB、Simulink 及相关工具包名称同样是 The MathWorks, Inc. 的商标；除该标志外，插件不包含也不重新分发 MathWorks 的内容，只调用其公开发布的产物。技能与工具的使用受 MathWorks 许可条款约束。

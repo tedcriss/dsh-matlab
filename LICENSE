@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 xuyuntao
+Copyright (c) 2026 小涛29 <xuyuntao@189.cn>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,4 +22,7 @@ SOFTWARE.
 
 MathWorks, MATLAB, Simulink, and toolbox names are trademarks of The MathWorks,
 Inc. This plugin is an independent integration: it downloads and runs MathWorks'
-own published artifacts and includes none of their content.
+own published artifacts and includes none of their content, except the MATLAB
+logo in icon.svg and in the Settings page icon (vector artwork taken from
+MATLAB R2023b itself), which identifies the integration and remains the
+trademark of The MathWorks, Inc. under no grant from this license.

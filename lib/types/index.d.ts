@@ -21,6 +21,15 @@ export declare const inject: readonly string[]
 /** HTTP path serving the resolved connectivity state. */
 export declare const STATUS_PATH = '/plugin/matlab/status'
 
+/** The npm package name, read from `package.json`. */
+export declare const PACKAGE_NAME: string
+
+/** The plugin version, read from `package.json`; the only version literal in the source tree. */
+export declare const VERSION: string
+
+/** Client identity the probe reports in the MCP `initialize` request. */
+export declare const CLIENT_INFO: { readonly name: string; readonly version: string }
+
 /** Plugin configuration. */
 export interface ConfigOptions {
   /** MCP namespace; tools appear as `mcp__<serverName>__<tool>`. Defaults to `matlab`. */
@@ -109,7 +118,9 @@ export interface ProbeResult {
 
 /** Resolved connectivity state served by `GET /plugin/matlab/status`. */
 export interface ActivationStatus {
-  readonly plugin: 'dsh-plugin-matlab'
+  readonly plugin: string
+  /** The plugin's own version, read from its `package.json`. */
+  readonly version: string
   readonly phase: 'starting' | 'skills' | 'tools' | 'provisioning' | 'ready' | 'failed'
 
   readonly matlab?: MatlabRoot

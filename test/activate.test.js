@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { activate, STATUS_PATH } from '../lib/activate.js'
 import { API_PATHS } from '../lib/api.js'
 import { resolveOptions } from '../lib/options.js'
+import { VERSION } from '../lib/version.js'
 
 const MANIFEST = `display-name: "Example Agentic Toolkit"
 skill-groups:
@@ -162,6 +163,8 @@ test('mounts the skill provider and the MCP bridge against MathWorks artifacts',
   }), seams(binary))
 
   assert.equal(status.phase, 'ready')
+  assert.equal(status.plugin, 'dsh-plugin-matlab')
+  assert.equal(status.version, VERSION)
   assert.equal(mounts.length, 2)
 
   const skills = mounts[0].config

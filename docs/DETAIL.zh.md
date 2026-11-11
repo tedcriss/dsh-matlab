@@ -37,6 +37,6 @@ MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit checkout 属�
 
 ## 诊断
 
-`GET /plugin/matlab/status` 会给出：解析到的 MATLAB 根目录、二进制路径与版本、探测结果（工具与资源名）、已加载技能组及技能数、当前生效的 GitHub 加速（`github.region` / `github.routes` / `server.route`），以及激活期间的告警。
+`GET /plugin/matlab/status` 会给出：插件自身的名字与版本（读自 `package.json`）、解析到的 MATLAB 根目录、二进制路径与版本、探测结果（工具与资源名）、已加载技能组及技能数、当前生效的 GitHub 加速（`github.region` / `github.routes` / `server.route`），以及激活期间的告警。
 
 完整字段见 [README](../README.md)，取舍理由见 [DESIGN](../DESIGN.md)。
