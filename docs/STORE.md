@@ -13,14 +13,14 @@ url: https://github.com/tedcriss/dsh-matlab
 name: tedcriss/dsh-matlab
 category: tools
 description:
-  en: 'Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later, and DSH must be restarted after installing the plugin. By default (autoProvision) it downloads the MathWorks MCP Server binary and installs the newest Agentic Toolkit release on first use. MathWorks telemetry stays on unless disableTelemetry is set.'
-  zh: '把 MathWorks 的 MATLAB Agentic Toolkit 技能与 MATLAB MCP Server 工具接入 DeepSeek Harness。需要本机 MATLAB R2021a 及以上，且安装插件后需重启 DSH。默认（autoProvision）首次使用时会下载 MathWorks MCP Server 并安装工具包的最新 Release。除非设置 disableTelemetry，否则 MathWorks 遥测保持开启。'
+  en: 'Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later, and DSH must be restarted after installing the plugin. By default (autoProvision) it downloads the MathWorks MCP Server binary and installs the newest Agentic Toolkit release on first use. MathWorks telemetry is disabled by default; set disableTelemetry to false to re-enable it.'
+  zh: '把 MathWorks 的 MATLAB Agentic Toolkit 技能与 MATLAB MCP Server 工具接入 DeepSeek Harness。需要本机 MATLAB R2021a 及以上，且安装插件后需重启 DSH。默认（autoProvision）首次使用时会下载 MathWorks MCP Server 并安装工具包的最新 Release。MathWorks 遥测默认关闭，把 disableTelemetry 设为 false 才会重新开启。'
 ```
 
 说明：
 
 - 只有 `description.en` 是必填；`zh` 已有，保持同步。
-- 描述里的每一句都对得上代码：插件不实现 MATLAB 能力（只挂载 MathWorks 的 MCP Server 与技能目录）；`autoProvision` 默认 `true`；`disableTelemetry` 默认 `true`（= 遥测关闭），所以文案写“除非设置 disableTelemetry，否则遥测保持开启”。这里不再出现“克隆工具包”，因为 1.1.8 起改为安装最新 Release。
+- 描述里的每一句都对得上代码：插件不实现 MATLAB 能力（只挂载 MathWorks 的 MCP Server 与技能目录）；`autoProvision` 默认 `true`；`disableTelemetry` 默认 `true`（= 遥测关闭），所以文案写“默认关闭，设为 `false` 才会重新开启”。这里不再出现“克隆工具包”，因为 1.1.8 起改为安装最新 Release。
 - 不加 `icon:`：商店回退到作者头像，`icon.svg` 仍是插件自己的图标。
 - 不加 `tarball:`：本包未发布 npm，源码安装即可（`dsh.bundle` 已声明）。
 - 不加 `npm:`：没有 npm 包，这一项也不允许手写。
