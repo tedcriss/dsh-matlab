@@ -322,10 +322,15 @@ window.__ModuleLoader__.load({
 .mp-row{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:10px 16px;align-items:center}
 .mp-row-block{display:flex;flex-direction:column;gap:6px}
 .mp-label{font-size:13px;color:var(--dsw-alias-label-primary)}
-.mp-input,.mp-select{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+.mp-input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
 .mp-input::placeholder{color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));opacity:.72}
 .mp-input:focus::placeholder{opacity:.5}
-.mp-input:focus,.mp-select:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.mp-radio-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 20px;padding:3px 0}
+.mp-radio{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--dsw-alias-label-primary);cursor:pointer;padding:3px 2px;border-radius:6px}
+.mp-radio:hover{color:var(--dsw-alias-brand-primary)}
+.mp-radio input{margin:0;cursor:pointer;accent-color:var(--dsw-alias-brand-primary)}
+.mp-radio input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.mp-input:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .mp-toggle{display:flex;align-items:flex-start;gap:8px;font-size:13px}
 .mp-toggle input{margin:3px 0 0}
 .mp-btn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);cursor:pointer}
@@ -425,12 +430,24 @@ window.__ModuleLoader__.load({
       })
     }
 
-    function Select({ value, options, onChange }) {
-      return h('select', {
-        className: 'mp-select',
-        value,
-        onChange: event => onChange(event.target.value),
-      }, options.map(option => h('option', { key: option.value, value: option.value }, option.label)))
+    /**
+     * A single-choice row.
+     *
+     * Every choice this page offers has at most four short options, so a row of
+     * radios shows all of them at once instead of hiding three behind a
+     * dropdown: nothing to open, nothing to scroll, one click to switch.
+     */
+    function RadioGroup({ name, value, options, onChange }) {
+      return h('div', { className: 'mp-radio-row', role: 'radiogroup' },
+        options.map(option => h('label', { key: option.value, className: 'mp-radio' },
+          h('input', {
+            type: 'radio',
+            name,
+            value: option.value,
+            checked: value === option.value,
+            onChange: () => onChange(option.value),
+          }),
+          h('span', null, option.label))))
     }
 
     function Toggle({ checked, onChange, label, hint }) {
@@ -586,7 +603,8 @@ window.__ModuleLoader__.load({
             onChange: value => onDraft({ ...draft, matlabRoot: value }),
           })),
         h(Field, { label: t('displayMode') },
-          h(Select, {
+          h(RadioGroup, {
+            name: 'matlab-display-mode',
             value: draft.displayMode,
             onChange: value => onDraft({ ...draft, displayMode: value }),
             options: [
@@ -595,7 +613,8 @@ window.__ModuleLoader__.load({
             ],
           })),
         h(Field, { label: t('sessionMode') },
-          h(Select, {
+          h(RadioGroup, {
+            name: 'matlab-session-mode',
             value: draft.sessionMode,
             onChange: value => onDraft({ ...draft, sessionMode: value }),
             options: [
@@ -665,7 +684,8 @@ window.__ModuleLoader__.load({
             onChange: value => onDraft({ ...draft, githubProxy: value }),
           })),
         h(Field, { label: t('region') },
-          h(Select, {
+          h(RadioGroup, {
+            name: 'matlab-download-region',
             value: draft.downloadRegion,
             onChange: value => onDraft({ ...draft, downloadRegion: value }),
             options: [
