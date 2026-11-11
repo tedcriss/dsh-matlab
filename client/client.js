@@ -112,6 +112,7 @@ window.__ModuleLoader__.load({
         removeLocal: '清空本地依赖',
         removing: '正在清空…',
         removed: '本地依赖已清空',
+        downloadBusy: '已有下载在进行，完成后再试',
         removeBusy: '有下载正在进行，完成后再清空',
         confirmRemoveTitle: '清空本地依赖？',
         confirmRemoveBody: '将删除插件已下载的 MATLAB MCP Server 与 Agentic Toolkit（$DSH_HOME/matlab 下由本插件安装的文件），不会动你的 MATLAB 安装、mcpServerPath 或 toolkitRoots 指向的目录。删除后 MATLAB 工具与技能会不可用，需要重新下载。',
@@ -224,6 +225,7 @@ window.__ModuleLoader__.load({
         removeLocal: 'Delete local dependencies',
         removing: 'Deleting…',
         removed: 'The local dependencies were deleted',
+        downloadBusy: 'A download is already running; try again when it finishes',
         removeBusy: 'A download is running; delete when it finishes',
         confirmRemoveTitle: 'Delete the local dependencies?',
         confirmRemoveBody: 'This deletes the MATLAB MCP Server and Agentic Toolkit copies this plugin downloaded under $DSH_HOME/matlab. Your MATLAB installation, mcpServerPath, and toolkitRoots folders are untouched. MATLAB tools and skills stop working until they are downloaded again.',
@@ -709,7 +711,7 @@ window.__ModuleLoader__.load({
      * entering the page is itself the local check; only "what is published"
      * needs the online probe behind {@link onCheck}.
      */
-    function DependenciesCard({ t, state, busy, checking, working, onCheck, onDownload, onRemove }) {
+    function DependenciesCard({ t, state, busy, checking, working, note, onCheck, onDownload, onRemove }) {
       const updates = state.updates
       const serverInstalled = state.server !== null && state.server !== undefined
       const toolkitInstalled = state.toolkit.length > 0
@@ -766,7 +768,10 @@ window.__ModuleLoader__.load({
             variant: 'danger',
             onClick: onRemove,
             disabled: busy || working !== null || (!serverInstalled && !toolkitInstalled),
-          }, workingRemove ? t('removing') : t('removeLocal'))))
+          }, workingRemove ? t('removing') : t('removeLocal'))),
+        note === null || note === undefined
+          ? null
+          : h('p', { className: note.tone === 'error' ? 'mp-error' : 'mp-note' }, note.text))
     }
 
     /** The confirmation the destructive action must pass through. */
@@ -809,6 +814,9 @@ window.__ModuleLoader__.load({
       // means no dependency action is in flight.
       const [working, setWorking] = useState(null)
       const [confirmRemove, setConfirmRemove] = useState(false)
+      // Feedback for a dependency action; it stays inside the dependency card so
+      // the save bar only ever talks about saving.
+      const [dependencyNote, setDependencyNote] = useState(null)
       const [message, setMessage] = useState(null)
       const initialDraft = useRef(null)
 
@@ -885,14 +893,17 @@ window.__ModuleLoader__.load({
 
       const check = useCallback(async () => {
         setChecking(true)
+        // Dependency feedback belongs in the dependency card, not next to Save:
+        // the result line already lives there, and "up to date" is not an edit.
+        setDependencyNote(null)
         setMessage(null)
         try {
-          const result = await postJson('/plugin/matlab/update', { check: true })
+          await postJson('/plugin/matlab/update', { check: true })
           await load(false)
-          const outdated = result.server?.outdated === true || result.toolkit?.outdated === true
-          setMessage({ tone: outdated ? 'warn' : 'success', text: outdated ? t('updateAvailable') : t('upToDate') })
+          // A probe that answered but found a problem reports it per artifact in
+          // the table; only a request that never got an answer needs a line here.
         } catch (cause) {
-          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+          setDependencyNote({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
           setChecking(false)
         }
@@ -900,13 +911,14 @@ window.__ModuleLoader__.load({
 
       const download = useCallback(async () => {
         setWorking('download')
+        setDependencyNote(null)
         setMessage(null)
         try {
           const outcome = await postJson('/plugin/matlab/dependencies', { action: 'download' })
           await load(false)
-          if (outcome.started !== true) setMessage({ tone: 'warn', text: t('checking') })
+          if (outcome.started !== true) setDependencyNote({ tone: 'warn', text: t('downloadBusy') })
         } catch (cause) {
-          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+          setDependencyNote({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
           setWorking(null)
         }
@@ -919,9 +931,9 @@ window.__ModuleLoader__.load({
           await postJson('/plugin/matlab/dependencies', { action: 'remove' })
           setConfirmRemove(false)
           await load()
-          setMessage({ tone: 'success', text: t('removed') })
+          setDependencyNote({ tone: 'success', text: t('removed') })
         } catch (cause) {
-          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+          setDependencyNote({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
           setWorking(null)
         }
@@ -946,6 +958,7 @@ window.__ModuleLoader__.load({
           busy,
           checking,
           working,
+          note: dependencyNote,
           onCheck: () => { void check() },
           onDownload: () => { void download() },
           onRemove: () => setConfirmRemove(true),

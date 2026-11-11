@@ -20,7 +20,7 @@ description:
 说明：
 
 - 只有 `description.en` 是必填；`zh` 已有，保持同步。
-- 描述里的每一句都对得上代码：插件不实现 MATLAB 能力（只挂载 MathWorks 的 MCP Server 与技能目录）；`autoProvision` 默认 `true`；`disableTelemetry` 默认 `true`（= 遥测关闭），所以文案写“除非设置 disableTelemetry，否则遥测保持开启”。这里不再出现“克隆工具包”，因为 1.1.3 起改为安装最新 Release。
+- 描述里的每一句都对得上代码：插件不实现 MATLAB 能力（只挂载 MathWorks 的 MCP Server 与技能目录）；`autoProvision` 默认 `true`；`disableTelemetry` 默认 `true`（= 遥测关闭），所以文案写“除非设置 disableTelemetry，否则遥测保持开启”。这里不再出现“克隆工具包”，因为 1.1.4 起改为安装最新 Release。
 - 不加 `icon:`：商店回退到作者头像，`icon.svg` 仍是插件自己的图标。
 - 不加 `tarball:`：本包未发布 npm，源码安装即可（`dsh.bundle` 已声明）。
 - 不加 `npm:`：没有 npm 包，这一项也不允许手写。
