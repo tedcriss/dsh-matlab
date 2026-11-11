@@ -254,6 +254,26 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * What an empty box expects.
+     *
+     * These are examples, not defaults: they are shown in the field's light
+     * placeholder colour and never written into the configuration. Paths and
+     * identifiers read the same in every language, so they live together here
+     * instead of being duplicated in both dictionaries.
+     */
+    const PLACEHOLDERS = {
+      matlabRoot: 'C:\\Program Files\\MATLAB\\R2025b',
+      initialWorkingFolder: 'C:\\Users\\you\\Documents\\MATLAB',
+      mcpServerPath: 'C:\\Users\\you\\.dsh\\matlab\\bin\\matlab-mcp-server.exe',
+      serverName: 'matlab',
+      agentName: 'DeepSeek',
+      toolCallTimeoutMs: '600000',
+      githubProxy: 'https://gh-proxy.com',
+      provisionTimeoutMs: '300000',
+      provisionWaitMs: '0',
+    }
+
+    /**
      * Resolve one route against the page's base URL.
      *
      * The Web GUI can be mounted under a prefix, so a leading slash would miss
@@ -303,6 +323,8 @@ window.__ModuleLoader__.load({
 .mp-row-block{display:flex;flex-direction:column;gap:6px}
 .mp-label{font-size:13px;color:var(--dsw-alias-label-primary)}
 .mp-input,.mp-select{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+.mp-input::placeholder{color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));opacity:.72}
+.mp-input:focus::placeholder{opacity:.5}
 .mp-input:focus,.mp-select:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .mp-toggle{display:flex;align-items:flex-start;gap:8px;font-size:13px}
 .mp-toggle input{margin:3px 0 0}
@@ -392,12 +414,13 @@ window.__ModuleLoader__.load({
       })
     }
 
-    function NumberInput({ value, onChange, min }) {
+    function NumberInput({ value, onChange, min, placeholder }) {
       return h('input', {
         className: 'mp-input',
         type: 'number',
         min,
         value: String(value),
+        placeholder,
         onChange: event => onChange(event.target.value),
       })
     }
@@ -559,6 +582,7 @@ window.__ModuleLoader__.load({
           h(TextInput, {
             value: draft.matlabRoot,
             disabled: !state.editable,
+            placeholder: PLACEHOLDERS.matlabRoot,
             onChange: value => onDraft({ ...draft, matlabRoot: value }),
           })),
         h(Field, { label: t('displayMode') },
@@ -583,6 +607,7 @@ window.__ModuleLoader__.load({
         h(Field, { label: t('initialWorkingFolder'), hint: t('initialWorkingFolderHint') },
           h(TextInput, {
             value: draft.initialWorkingFolder,
+            placeholder: PLACEHOLDERS.initialWorkingFolder,
             onChange: value => onDraft({ ...draft, initialWorkingFolder: value }),
           })),
         h(Toggle, {
@@ -605,22 +630,26 @@ window.__ModuleLoader__.load({
         h(Field, { label: t('mcpServerPath'), hint: t('mcpServerPathHint') },
           h(TextInput, {
             value: draft.mcpServerPath,
+            placeholder: PLACEHOLDERS.mcpServerPath,
             onChange: value => onDraft({ ...draft, mcpServerPath: value }),
           })),
         h(Field, { label: t('serverName'), hint: t('serverNameHint') },
           h(TextInput, {
             value: draft.serverName,
+            placeholder: PLACEHOLDERS.serverName,
             onChange: value => onDraft({ ...draft, serverName: value }),
           })),
         h(Field, { label: t('agentName'), hint: t('agentNameHint') },
           h(TextInput, {
             value: draft.agentName,
+            placeholder: PLACEHOLDERS.agentName,
             onChange: value => onDraft({ ...draft, agentName: value }),
           })),
         h(Field, { label: t('callTimeout'), hint: t('callTimeoutHint') },
           h(NumberInput, {
             value: draft.toolCallTimeoutMs,
             min: 1000,
+            placeholder: PLACEHOLDERS.toolCallTimeoutMs,
             onChange: value => onDraft({ ...draft, toolCallTimeoutMs: value }),
           })))
     }
@@ -632,6 +661,7 @@ window.__ModuleLoader__.load({
         h(Field, { label: t('githubProxy'), hint: t('githubProxyHint') },
           h(TextInput, {
             value: draft.githubProxy,
+            placeholder: PLACEHOLDERS.githubProxy,
             onChange: value => onDraft({ ...draft, githubProxy: value }),
           })),
         h(Field, { label: t('region') },
@@ -650,12 +680,14 @@ window.__ModuleLoader__.load({
           h(NumberInput, {
             value: draft.provisionTimeoutMs,
             min: 10000,
+            placeholder: PLACEHOLDERS.provisionTimeoutMs,
             onChange: value => onDraft({ ...draft, provisionTimeoutMs: value }),
           })),
         h(Field, { label: t('wait'), hint: t('waitHint') },
           h(NumberInput, {
             value: draft.provisionWaitMs,
             min: 0,
+            placeholder: PLACEHOLDERS.provisionWaitMs,
             onChange: value => onDraft({ ...draft, provisionWaitMs: value }),
           })),
         h(Toggle, {
