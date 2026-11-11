@@ -274,6 +274,22 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The value discovery settled on for a field the user left empty.
+     *
+     * `matlabRoot` and `mcpServerPath` can both be found automatically, and the
+     * page already knows what was found: showing it in the empty box says more
+     * than any example could ("this is what will be used"). A value that came
+     * from the configuration itself is not a discovery, so it is not offered —
+     * the user typed it, and the box is only empty after they cleared it.
+     */
+    function discoveredValue(resolved, key) {
+      if (resolved === null || resolved === undefined) return undefined
+      if (resolved.source === 'config') return undefined
+      const value = resolved[key]
+      return typeof value === 'string' && value !== '' ? value : undefined
+    }
+
+    /**
      * Resolve one route against the page's base URL.
      *
      * The Web GUI can be mounted under a prefix, so a leading slash would miss
@@ -599,7 +615,7 @@ window.__ModuleLoader__.load({
           h(TextInput, {
             value: draft.matlabRoot,
             disabled: !state.editable,
-            placeholder: PLACEHOLDERS.matlabRoot,
+            placeholder: discoveredValue(state.matlab, 'root') ?? PLACEHOLDERS.matlabRoot,
             onChange: value => onDraft({ ...draft, matlabRoot: value }),
           })),
         h(Field, { label: t('displayMode') },
@@ -649,7 +665,7 @@ window.__ModuleLoader__.load({
         h(Field, { label: t('mcpServerPath'), hint: t('mcpServerPathHint') },
           h(TextInput, {
             value: draft.mcpServerPath,
-            placeholder: PLACEHOLDERS.mcpServerPath,
+            placeholder: discoveredValue(state.server, 'path') ?? PLACEHOLDERS.mcpServerPath,
             onChange: value => onDraft({ ...draft, mcpServerPath: value }),
           })),
         h(Field, { label: t('serverName'), hint: t('serverNameHint') },
