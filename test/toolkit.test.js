@@ -129,7 +129,9 @@ test('empty selection loads every group, including groups the toolkit does not m
   })
   const toolkits = [await readToolkit(root)]
   assert.deepEqual(selectSkillGroups(toolkits, []).groups.map(group => group.name), ['core', 'extra'])
-  assert.deepEqual(selectSkillGroups(toolkits, ['extra']).groups.map(group => group.name), ['extra'])
+  // A required group cannot be left out by a stored selection; the result is in
+  // toolkit order, so a future manifest reorder survives an old saved list.
+  assert.deepEqual(selectSkillGroups(toolkits, ['extra']).groups.map(group => group.name), ['core', 'extra'])
   assert.deepEqual(selectSkillGroups(toolkits, ['core', 'nope']).unknown, ['nope'])
 })
 

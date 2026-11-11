@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Readable } from 'node:stream'
 
 import { activate, STATUS_PATH } from '../lib/activate.js'
 import { API_PATHS } from '../lib/api.js'
@@ -102,6 +103,28 @@ function recordingWebServer() {
       return () => {}
     },
   }
+}
+
+/** Invoke a registered mutation the way the carrier's handler receives it. */
+async function postJson(route, body) {
+  const request = Readable.from([Buffer.from(JSON.stringify(body ?? {}))])
+  request.method = 'POST'
+  request.headers = { host: '127.0.0.1', 'content-type': 'application/json' }
+  const record = {}
+  const response = {
+    writableEnded: false,
+    writeHead(status, headers) {
+      record.status = status
+      record.headers = headers
+    },
+    end(text) {
+      record.body = text
+      this.writableEnded = true
+    },
+    destroy() {},
+  }
+  await route.handler(request, response)
+  return { status: record.status, json: record.body === '' ? undefined : JSON.parse(record.body) }
 }
 
 /** Six-byte placeholder standing in for the downloaded server binary. */
@@ -441,6 +464,49 @@ test('a missing toolkit is cloned over the same acceleration routes', async t =>
   assert.deepEqual(status.github.routes, ['gh-proxy.com', 'direct'])
 })
 
+test('the install button fetches even when automatic provisioning is off', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const webServer = recordingWebServer()
+  const { ctx } = fakeContext({ skills: {}, webServer })
+  let cloned = 0
+
+  await activate(ctx, baseConfig({ autoProvision: false, mcpServerPath: binary }), {
+    ...seams(binary),
+    cloneToolkit: async () => {
+      cloned += 1
+      return { root: await makeToolkit(dir), route: null }
+    },
+  })
+  // Activation obeys autoProvision: no fetch while it is off.
+  assert.equal(cloned, 0)
+
+  const response = await postJson(webServer.registered.find(entry => entry.path === API_PATHS.provision), {})
+  assert.equal(response.status, 202)
+  assert.equal(response.json.started, true)
+  assert.deepEqual(response.json.missing, ['toolkit'])
+
+  for (let attempt = 0; attempt < 60 && cloned === 0; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.equal(cloned, 1, 'the explicit install action must not be vetoed by autoProvision')
+
+  // Let the background mount finish before the temporary folder is removed.
+  const stateRoute = webServer.registered.find(entry => entry.path === API_PATHS.state)
+  const view = async () => (await stateRoute.resource(new Request(`http://127.0.0.1${API_PATHS.state}`))).json()
+  let current = await view()
+  for (let attempt = 0; attempt < 60 && current.progress.stage !== 'done'; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+    current = await view()
+  }
+  assert.equal(current.progress.stage, 'done')
+  assert.equal(current.phase, 'ready')
+})
+
 test('a first-time fetch never holds activation, because DSH abandons a slow start', async t => {  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   process.env.DSH_HOME = join(dir, 'dsh-home')
@@ -548,6 +614,50 @@ test('a settings change remounts the catalog with the new selection', async t =>
   assert.deepEqual(mounts[2].config.customSkillDirs, [join(toolkit, 'skills-catalog', 'core')])
 })
 
+test('a settings change re-resolves the MATLAB root and the download route', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx, mounts, listeners } = fakeContext()
+  let matlabRoot = ''
+  let githubProxy = ''
+  const config = baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+    matlabRoot: { get: () => matlabRoot },
+    githubProxy: { get: () => githubProxy },
+  })
+  const resolution = []
+  await activate(ctx, config, {
+    ...seams(binary),
+    discoverMatlabRoot: async options => {
+      resolution.push({ root: options.explicit })
+      return { root: options.explicit ?? '/auto/MATLAB', source: 'config', exists: true }
+    },
+    resolveGithubAcceleration: async options => {
+      resolution.push({ proxy: options.githubProxy })
+      return { region: 'china', regionSource: 'config', proxy: null, source: 'none', routes: [null] }
+    },
+  })
+
+  matlabRoot = '/new/MATLAB/R2026a'
+  githubProxy = 'https://gh-proxy.com'
+  const listener = listeners.find(entry => entry.name === 'loader/volatile-update')
+  listener.callback([['matlabRoot'], ['githubProxy']])
+  await new Promise(resolve => setTimeout(resolve, 400))
+
+  // A remount must not reuse the activation-time root or route: the MCP bridge
+  // would otherwise keep starting the old MATLAB over the old acceleration.
+  assert.equal(resolution.filter(entry => entry.root !== undefined).at(-1).root, '/new/MATLAB/R2026a')
+  assert.equal(resolution.filter(entry => entry.proxy !== undefined).at(-1).proxy, 'https://gh-proxy.com')
+  const args = mounts.at(-1).config.args
+  assert.ok(args.includes('--matlab-root=/new/MATLAB/R2026a'), args.join(' '))
+})
+
 test('a background download reports its progress to the dialog', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
@@ -648,14 +758,10 @@ test('an update replaces only the outdated artifact and remounts it', async t =>
   assert.equal(mounts.length, 2)
 
   const route = path => webServer.registered.find(entry => entry.path === path)
-  const post = body => route(API_PATHS.update).resource(new Request(`http://127.0.0.1${API_PATHS.update}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  }))
+  const post = body => postJson(route(API_PATHS.update), body)
   const state = async () => (await route(API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))).json()
 
-  const check = await (await post({ check: true })).json()
+  const check = (await post({ check: true })).json
   assert.equal(check.server.current, 'v0.16.0')
   assert.equal(check.server.latest, 'v0.17.0')
   assert.equal(check.server.outdated, true)
@@ -666,7 +772,6 @@ test('an update replaces only the outdated artifact and remounts it', async t =>
 
   const accepted = await post()
   assert.equal(accepted.status, 202)
-
   let view = await state()
   for (let attempt = 0; attempt < 60 && view.progress.stage !== 'done'; attempt += 1) {
     await new Promise(resolve => setTimeout(resolve, 50))

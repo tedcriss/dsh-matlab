@@ -51,7 +51,9 @@ window.__ModuleLoader__.load({
         conflict: '设置已被其他窗口修改，已重新载入。',
         editableUnavailable: '当前 profile 没有 settings 服务，请直接在 cordis.patch.yml 中修改。',
         groupsTitle: '技能组',
-        groupsHint: '开关决定模型能看到哪些 MATLAB 技能。默认全开；全部勾选时保存为“全部”，新增的组也会自动纳入。',
+        groupsHint: '开关决定模型能看到哪些 MATLAB 技能。默认全开；全部勾选时保存为“全部”，新增的组也会自动纳入。标记“必需”的组始终启用，不能关闭。',
+        groupColumn: '技能组',
+        skillsColumn: '技能数',
         selectAll: '全选',
         selectNone: '全不选',
         required: '必需',
@@ -105,11 +107,13 @@ window.__ModuleLoader__.load({
         checking: '正在检查…',
         updating: '正在更新…',
         upToDate: '已是最新',
+        checkFailed: '检查失败，原因见上方',
         updateAvailable: '有可用更新',
         updatesNever: '尚未检查。',
         currentLabel: '当前',
         latestLabel: '最新',
         notInstalled: '未安装',
+        installedLabel: '已安装',
         toolkitLabel: '工具包',
         updateKindTitle: '正在更新 MATLAB 依赖',
         installMissing: '检查并安装缺失依赖',
@@ -153,7 +157,9 @@ window.__ModuleLoader__.load({
         conflict: 'Another window changed these settings; the page reloaded them.',
         editableUnavailable: 'This profile has no settings service; edit cordis.patch.yml instead.',
         groupsTitle: 'Skill groups',
-        groupsHint: 'Switches decide which MATLAB skills the model can see. All groups are on by default; saving with every group checked stores "all", so new groups join automatically.',
+        groupsHint: 'Switches decide which MATLAB skills the model can see. All groups are on by default; saving with every group checked stores "all", so new groups join automatically. A group marked "required" is always on and cannot be turned off.',
+        groupColumn: 'Skill group',
+        skillsColumn: 'Skills',
         selectAll: 'Select all',
         selectNone: 'Select none',
         required: 'required',
@@ -207,11 +213,13 @@ window.__ModuleLoader__.load({
         checking: 'Checking…',
         updating: 'Updating…',
         upToDate: 'Up to date',
+        checkFailed: 'Check failed; see the reason above',
         updateAvailable: 'Update available',
         updatesNever: 'Not checked yet.',
         currentLabel: 'Current',
         latestLabel: 'Latest',
         notInstalled: 'not installed',
+        installedLabel: 'installed',
         toolkitLabel: 'Toolkit',
         updateKindTitle: 'Updating MATLAB dependencies',
         installMissing: 'Check and install what is missing',
@@ -291,11 +299,20 @@ window.__ModuleLoader__.load({
 .mp-kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;font-size:12px}
 .mp-kv dt{color:var(--dsw-alias-label-secondary)}
 .mp-kv dd{margin:0;overflow-wrap:anywhere}
-.mp-groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 16px}
-.mp-group{display:flex;align-items:flex-start;gap:8px;font-size:13px;padding:3px 0}
-.mp-group input{margin-top:3px}
-.mp-group-name{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
-.mp-group-count{font-size:11px;color:var(--dsw-alias-label-secondary)}
+.mp-groups-wrap{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden}
+.mp-groups-head,.mp-group{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:12px;align-items:center;padding:6px 12px}
+.mp-groups-head{font-size:11px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mp-groups-head span:last-child{text-align:right}
+.mp-groups{max-height:320px;overflow-y:auto;overscroll-behavior:contain}
+.mp-group{margin:0;font-size:13px;cursor:pointer;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mp-group:last-child{border-bottom:0}
+.mp-group:hover{background:var(--dsw-alias-bg-layer-2)}
+.mp-group-required{cursor:default}
+.mp-group-required:hover{background:transparent}
+.mp-group-check{display:flex;align-items:center;gap:8px;min-width:0}
+.mp-group input{margin:0;flex:none}
+.mp-group-name{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;overflow-wrap:anywhere}
+.mp-group-count{font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;text-align:right}
 .mp-error{font-size:12px;color:var(--dsw-alias-state-error-primary);margin:0;overflow-wrap:anywhere}
 .mp-note{font-size:12px;color:var(--dsw-alias-label-secondary);margin:0}
 .mp-toast{position:fixed;right:20px;bottom:20px;width:320px;max-width:calc(100vw - 40px);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
@@ -403,10 +420,15 @@ window.__ModuleLoader__.load({
     }
 
     function selectedFrom(config, groups) {
+      // A required group is part of the catalog by definition: the page never
+      // shows it unchecked, even when an older config lists only other groups.
+      const required = groups.filter(group => group.required === true).map(group => group.name)
       const declared = Array.isArray(config.skillGroups) ? config.skillGroups : []
       const every = declared.length === 0 || declared.includes('*')
       if (every) return new Set(groups.map(group => group.name))
-      return new Set(declared.filter(name => groups.some(group => group.name === name)))
+      const selected = new Set(declared.filter(name => groups.some(group => group.name === name)))
+      for (const name of required) selected.add(name)
+      return selected
     }
 
     function sameSet(a, b) {
@@ -448,38 +470,53 @@ window.__ModuleLoader__.load({
 
     function GroupsCard({ t, state, selected, onSelected }) {
       const groups = state.groups
-      const rows = groups.map(group => h('label', { key: group.name, className: 'mp-group' },
-        h('input', {
-          type: 'checkbox',
-          checked: selected.has(group.name),
-          disabled: !state.editable,
-          onChange: event => {
-            const next = new Set(selected)
-            if (event.target.checked) next.add(group.name)
-            else next.delete(group.name)
-            onSelected(next)
-          },
-        }),
-        h('span', { className: 'mp-group-name' },
-          h('span', null, group.displayName || group.name),
-          h('span', { className: 'mp-group-count' }, `${group.skills} ${t('skillsUnit')}`),
-          group.required ? h('span', { className: 'mp-badge' }, t('required')) : null)))
+      const editable = state.editable
+      const requiredNames = groups.filter(group => group.required === true).map(group => group.name)
+      const rows = groups.map(group => {
+        const required = group.required === true
+        return h('label', {
+          key: group.name,
+          className: required ? 'mp-group mp-group-required' : 'mp-group',
+          title: group.description === undefined || group.description === '' ? undefined : group.description,
+        },
+          h('span', { className: 'mp-group-check' },
+            h('input', {
+              type: 'checkbox',
+              checked: required || selected.has(group.name),
+              disabled: !editable || required,
+              onChange: event => {
+                if (required) return
+                const next = new Set(selected)
+                if (event.target.checked) next.add(group.name)
+                else next.delete(group.name)
+                onSelected(next)
+              },
+            }),
+            h('span', { className: 'mp-group-name' },
+              h('span', null, group.displayName || group.name),
+              required ? h('span', { className: 'mp-badge' }, t('required')) : null)),
+          h('span', { className: 'mp-group-count' }, `${group.skills} ${t('skillsUnit')}`))
+      })
       return h('div', { className: 'mp-card' },
         h('div', { className: 'mp-card-head' },
           h('h2', { className: 'mp-card-title' }, t('groupsTitle')),
           h('div', { className: 'mp-actions' },
             h(Button, {
               onClick: () => onSelected(new Set(groups.map(group => group.name))),
-              disabled: groups.length === 0 || !state.editable,
+              disabled: groups.length === 0 || !editable,
             }, t('selectAll')),
             h(Button, {
-              onClick: () => onSelected(new Set()),
-              disabled: groups.length === 0 || !state.editable,
+              onClick: () => onSelected(new Set(requiredNames)),
+              disabled: groups.length === 0 || !editable,
             }, t('selectNone')))),
         h('p', { className: 'mp-hint' }, t('groupsHint')),
         groups.length === 0
           ? h('p', { className: 'mp-note' }, t('noToolkit'))
-          : h('div', { className: 'mp-groups' }, rows))
+          : h('div', { className: 'mp-groups-wrap' },
+            h('div', { className: 'mp-groups-head' },
+              h('span', null, t('groupColumn')),
+              h('span', null, t('skillsColumn'))),
+            h('div', { className: 'mp-groups', role: 'group', 'aria-label': t('groupsTitle') }, rows)))
     }
 
     function MatlabCard({ t, state, draft, onDraft }) {
@@ -607,10 +644,14 @@ window.__ModuleLoader__.load({
 
     /** One artifact's current/latest line inside the Updates card. */
     function UpdateRow({ t, label, status }) {
+      const installed = status?.installed === true
+      const current = status?.current
       const outdated = status?.outdated === true
-      const value = status?.installed !== true
+      const value = installed === false
         ? t('notInstalled')
-        : `${t('currentLabel')} ${status.current ?? '?'}`
+        : current === undefined || current === ''
+          ? t('installedLabel')
+          : `${t('currentLabel')} ${current}`
       return h('div', { className: 'mp-row' },
         h('span', { className: 'mp-label' }, label),
         h('span', { className: 'mp-group-name' },
@@ -622,20 +663,38 @@ window.__ModuleLoader__.load({
 
     function UpdatesCard({ t, state, busy, checking, onCheck, onUpdate }) {
       const updates = state.updates
+      // Before the first check there is no comparison, but the page already
+      // knows what is installed; reporting "not installed" from a missing
+      // comparison is what made a working checkout look broken.
+      const server = updates?.server ?? {
+        installed: state.server !== null && state.server !== undefined,
+        current: state.server?.version,
+        outdated: false,
+      }
+      const toolkit = updates?.toolkit ?? {
+        installed: state.toolkit.length > 0,
+        current: undefined,
+        outdated: false,
+      }
       const outdated = updates !== null && (updates.toolkit?.outdated === true || updates.server?.outdated === true)
+      const failed = updates !== null && (
+        (updates.server?.error !== undefined && updates.server.error !== null)
+        || (updates.toolkit?.error !== undefined && updates.toolkit.error !== null))
       const summary = updates === null
         ? t('updatesNever')
         : outdated
           ? t('updateAvailable')
-          : t('upToDate')
+          : failed
+            ? t('checkFailed')
+            : t('upToDate')
       return h('div', { className: 'mp-card' },
         h('h2', { className: 'mp-card-title' }, t('updatesTitle')),
         h('p', { className: 'mp-hint' }, t('updatesHint')),
-        h(UpdateRow, { t, label: t('serverTitle'), status: updates?.server }),
-        h(UpdateRow, { t, label: t('toolkitLabel'), status: updates?.toolkit }),
+        h(UpdateRow, { t, label: t('serverTitle'), status: server }),
+        h(UpdateRow, { t, label: t('toolkitLabel'), status: toolkit }),
         h('p', { className: 'mp-note' }, summary),
         h('div', { className: 'mp-actions' },
-          h(Button, { onClick: onCheck, disabled: busy }, checking ? t('checking') : t('checkUpdates')),
+          h(Button, { onClick: onCheck, disabled: busy || checking }, checking ? t('checking') : t('checkUpdates')),
           outdated ? h(Button, { variant: 'primary', onClick: onUpdate, disabled: busy }, t('updateNow')) : null))
     }
 
@@ -698,10 +757,15 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setMessage(null)
         try {
-          const everySelected = groups.length > 0 && selected.size === groups.length
-          const declared = everySelected
-            ? []
-            : groups.filter(group => selected.has(group.name)).map(group => group.name)
+          // A required group is always part of the saved selection, even if a
+          // stale page state tried to drop it: the Host enforces the same rule.
+          const chosen = groups
+            .filter(group => group.required === true || selected.has(group.name))
+            .map(group => group.name)
+          const everySelected = groups.length > 0 && chosen.length === groups.length
+          // Every group checked is stored as "all", so groups a later toolkit
+          // adds are included without the user saving a new list.
+          const declared = everySelected ? [] : chosen
           await postJson('/plugin/matlab/config', {
             revision: state.revision,
             patch: {
@@ -715,8 +779,11 @@ window.__ModuleLoader__.load({
           await load()
           setMessage({ tone: 'success', text: t('saved') })
         } catch (cause) {
-          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+          const text = cause instanceof Error ? cause.message : String(cause)
+          // Reload first and report after: `load()` clears the message, so
+          // setting it before the reload would hide the reason from the user.
           await load()
+          setMessage({ tone: 'error', text })
         } finally {
           setBusy(false)
         }
@@ -726,40 +793,47 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setMessage(null)
         try {
-          await postJson('/plugin/matlab/provision')
+          const outcome = await postJson('/plugin/matlab/provision')
           await load(false)
+          if (outcome.started !== true) {
+            const missing = Array.isArray(outcome.missing) ? outcome.missing : []
+            setMessage({ tone: 'success', text: missing.length === 0 ? t('installed') : t('checking') })
+          }
         } catch (cause) {
           setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
           setBusy(false)
         }
-      }, [load])
+      }, [load, t])
 
       const check = useCallback(async () => {
         setChecking(true)
         setMessage(null)
         try {
-          await postJson('/plugin/matlab/update', { check: true })
+          const result = await postJson('/plugin/matlab/update', { check: true })
           await load(false)
+          const outdated = result.server?.outdated === true || result.toolkit?.outdated === true
+          setMessage({ tone: outdated ? 'warn' : 'success', text: outdated ? t('updateAvailable') : t('upToDate') })
         } catch (cause) {
           setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
           setChecking(false)
         }
-      }, [load])
+      }, [load, t])
 
       const update = useCallback(async () => {
         setBusy(true)
         setMessage(null)
         try {
-          await postJson('/plugin/matlab/update', {})
+          const outcome = await postJson('/plugin/matlab/update', {})
           await load(false)
+          if (outcome.started !== true) setMessage({ tone: 'success', text: t('upToDate') })
         } catch (cause) {
           setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
           setBusy(false)
         }
-      }, [load])
+      }, [load, t])
 
       if (state === null || draft === null || initialDraft.current === null) {
         return h('div', { className: 'mp-page' },

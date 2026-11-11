@@ -8,7 +8,7 @@
 
 插件本身**不实现任何 MATLAB 能力**。它只做三件连接性的事：**找到** MathWorks 的二进制与技能目录，**校验**它能跑通（一次 MCP 握手），**挂载** DSH 自带的两个传输层（MCP 桥、技能目录提供方）。工具与技能内容全部是 MathWorks 原件，不复制、不改写、不重新打包。
 
-> **前置与默认行为**（与 DSH 商店条目一致）：需要本机 MATLAB **R2021a 或更新**；默认 `autoProvision: true`，首次使用时下载 MathWorks MCP Server 并克隆工具包；除非设置 `disableTelemetry: true`，MathWorks 遥测保持开启。
+> **前置与默认行为**（与 DSH 商店条目一致）：需要本机 MATLAB **R2021a 或更新**；默认 `autoProvision: true`，首次使用时下载 MathWorks MCP Server 并克隆工具包；MathWorks 遥测默认关闭（只有把 `disableTelemetry` 设为 `false` 才开启）。
 
 > 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。
 
@@ -105,7 +105,7 @@ pnpm add file:/path/to/dsh-matlab
 | `displayMode` | `desktop` | `nodesktop` 表示不弹 MATLAB 桌面 |
 | `initialWorkingFolder` | DSH 工作目录 | MATLAB 启动目录 |
 | `initializeMatlabOnStartup` | `false` | 为 `true` 时 MCP 服务一启动就拉起 MATLAB |
-| `disableTelemetry` | `false` | 透传 `--disable-telemetry=true` |
+| `disableTelemetry` | `true` | 透传 `--disable-telemetry=true`；默认关闭遥测 |
 | `mcpServerPath` | 自动 | 指定 `matlab-mcp-server` 可执行文件；留空则发现或下载 |
 | `autoProvision` | `true` | 缺失时下载二进制、克隆 MATLAB 工具包 checkout |
 | `githubProxy` | 空（沿用 DSH） | GitHub 加速前缀，例如 `https://gh-proxy.com`；留空则沿用 DSH 已配置的加速（`DSHM_GITHUB_PROXY`，或 DSH 市场“GitHub 加速”里的自定义前缀） |
@@ -124,7 +124,7 @@ pnpm add file:/path/to/dsh-matlab
 
 插件自带 Web 界面（纯 ESM 客户端模块，无构建步骤）：
 
-- **设置 → MATLAB**（侧栏设置面板里的一页）：连接状态（阶段、MATLAB 根、MCP Server 与版本、实际线路、探测到的工具数）；**技能组开关**（默认全选；全部勾选时保存为“全部”，将来新增的组自动纳入）；MATLAB 启动参数（根目录、桌面、会话模式、起始目录、启动即拉起、遥测）；MCP Server（可执行文件路径、命名空间、调用超时）；依赖下载（加速前缀、区域、预算、启动等待、监视工具包）；维护（一键检查并安装缺失依赖）。
+- **设置 → MATLAB**（侧栏设置面板里的一页）：连接状态（阶段、MATLAB 根、MCP Server 与版本、实际线路、探测到的工具数）；**技能组开关**（可上下滚动的两列列表：组名 + 技能数；默认全选，全部勾选时保存为“全部”，将来新增的组自动纳入；标“必需”的组锁定为已选，不能关闭）；MATLAB 启动参数（根目录、桌面、会话模式、起始目录、启动即拉起、遥测默认关闭）；MCP Server（可执行文件路径、命名空间、调用超时）；依赖下载（加速前缀、区域、预算、启动等待、监视工具包）；更新依赖（检查更新 / 更新依赖）；维护（一键检查并安装缺失依赖）。
 - **右下角进度对话框**：首次准备、或缺口被补齐时出现，显示“克隆工具包 / 下载二进制”、字节进度（镜像声明长度时是确定进度，否则流动条）、当前线路；可以关掉（后台继续），失败可重试。它只是提示，不挡住应用。
 
 设置保存后**立即生效**：页面通过 DSH 的 `settings` 服务写入 profile 补丁，DSH 把 volatile 变更提交给运行中的插件，插件收到 `loader/volatile-update` 后重新挂载受影响的部分（技能目录、MCP 桥）。直接在 `cordis.patch.yml` 里改这些字段效果相同。
@@ -137,7 +137,7 @@ DSH 在插件第一次被加载之前不会运行它的任何代码，所以“�
 
 ### 更新依赖
 
-机器上的依赖不会自己变新，所以设置页里有一张“更新依赖”卡片：
+机器上的依赖不会自己变新，所以设置页里有一张“更新依赖”卡片。还没检查时，卡片按实时状态显示“当前 …”或“已安装”，只有确实缺失时才写“未安装”；检查之后才补上“最新 …”。
 
 1. **检查更新**（只读两次很小的探测，不下载）：MCP Server 看 GitHub 的 `releases/latest`（镜像拒绝 API 时退到仓库的 tag 列表），工具包看 `git ls-remote HEAD`；两边都走同一条加速线路。
 2. 只有 **新版本大于当前版本** 时才出现“更新依赖”：先停掉正在运行的 MCP 桥与技能目录（Windows 不允许替换正在运行的 exe，技能监视器也不该看着目录被重写），再下载/克隆、重新挂载。工具包先克隆到 `*.incoming`，完整克隆成功才替换旧目录——更新失败时旧副本原样保留并被重新挂回；二进制本身是“临时文件 + 原子改名”。更新期间右下角的进度对话框标题会变成“正在更新 MATLAB 依赖”。
@@ -241,7 +241,7 @@ Now you can use DeepSeek to work with MATLAB.
    ```json
    {
      "plugin": "dsh-plugin-matlab",
-     "version": "1.0.0",
+     "version": "1.0.1",
      "phase": "ready",
      "installer": { "configFound": true, "matlabRoot": "C:\\Program Files\\MATLAB\\R2023b" },
      "server": { "path": "...\\bin\\matlab-mcp-server.exe", "version": "github.com/matlab/matlab-mcp-server v0.16.0" },
@@ -260,7 +260,7 @@ Now you can use DeepSeek to work with MATLAB.
 
 技能的**选择单位是“组”**（MathWorks 的 `skills-catalog/<group>`），不是单个文件——这与 MathWorks 给 Amp 的 `amp.skills.path` 完全一致。组名来自工具包的 `manifest.yaml`，也就是 `skills-catalog/` 下的目录名。**默认加载全部组**；想省上下文再按组收窄。
 
-最省事的是 **设置 → MATLAB → 技能组** 里点开关（保存即生效，不用重启）。想写进配置就用下面三种写法（都在 profile 的 `cordis.patch.yml` 里覆盖 `matlab-agentic` 这一行）：
+最省事的是 **设置 → MATLAB → 技能组**：一个可上下滚动的两列列表，左列是组名、右列是技能数；点开关后保存即生效，不用重启。标“必需”的组（MATLAB 工具包的 `matlab-core`）勾选框已锁定为选中且禁用，点“全不选”也会保留它——厂商声明每个用户都需要它，页面与 Host 都不允许关闭。想写进配置就用下面三种写法（都在 profile 的 `cordis.patch.yml` 里覆盖 `matlab-agentic` 这一行）：
 
 ```yaml
 # 1) 默认：加载全部组（MATLAB 工具包 24 组 / 158 个技能）
@@ -279,7 +279,7 @@ Now you can use DeepSeek to work with MATLAB.
 
 全量的代价：技能目录常驻约 **8,000 tokens**（158 条 name + 描述，按 DSH 的 500 字符截断实测）；只留 `[matlab-core, signal-processing]` 时约 1.6k tokens。技能越多，模型挑错技能的概率也越高，所以按领域收窄是省 token 的做法。
 
-写错组名会**直接激活失败**，并在报错里列出所有可用组名（避免“静默少装”）。改完需要在插件页把该插件关掉再打开（或重启 DSH Desktop）。
+写错组名会**直接激活失败**，并在报错里列出所有可用组名（避免“静默少装”）。`skillGroups` 里即使漏写必需组，插件也会把它补回来：必需组是厂商的运行时前提，不是可选项。改完需要在插件页把该插件关掉再打开（或重启 DSH Desktop）。
 
 ### 各组一览（MATLAB 工具包，2026.11.a）
 
@@ -366,7 +366,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | 复用你正在用的 MATLAB 会话（`sessionMode: existing`） | ❌ 需要 MATLAB 侧装 add-on | 跑一次 `<DSH_HOME>/matlab/bin/matlab-mcp-server.exe --setup-matlab --matlab-root=<MATLAB根>`，再在 MATLAB 里 `shareMATLABSession()` |
 | Simulink 技能与 `tools/tools.json` 工具扩展 | ❌ 不会自动克隆 Simulink 工具包 | 自行 clone 后设 `toolkitRoots`（插件只从自己的目录读，不碰安装器那份） |
 | 记住你在安装器里选的 MATLAB 版本 | ⚠️ 不读安装器记录，按 环境变量 → PATH → 注册表 → 最新安装目录 发现 | 多版本共存时显式设 `matlabRoot` |
-| 遥测默认关闭 | ❌ 默认仍开启 | `disableTelemetry: true` |
+| 遥测默认关闭 | ✅ 默认关闭（`disableTelemetry: true`） | 需要时在设置页取消勾选，或设 `disableTelemetry: false` |
 | 更新依赖 | ✅ 设置页“检查更新/更新依赖”（只比版本，不盲目重下） | — |
 | 二次启动 | ✅ 复用已下载的二进制与 checkout，不再联网（实测 0 次下载） | — |
 
@@ -385,6 +385,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | 首次启动卡在下载、最后进了恢复助手 | 直连 GitHub 在国内约 7 KB/s；先看日志里 `github: …` 一行用了哪条线路。把 DSH 市场的下载区域设为“中国区”，或设 `githubProxy` / `DSHM_GITHUB_PROXY`（见“首次下载”一节） |
 | 下载失败（企业代理） | DSH 启动器会把 `HTTPS_PROXY` 应用到 `fetch`；纯 Node 环境下需 `NODE_USE_ENV_PROXY=1`。也可手动下载二进制后设 `mcpServerPath` |
 | 设置页保存报 `not volatile` / 400 | 只有 `.volatile()` 字段能从页面保存；其余字段请写进 `cordis.patch.yml` 后重启 |
+| 设置页保存 / 检查更新 / 安装依赖报 `HTTP 405` | 宿主进程还在运行升级前的 Host 代码（插件只在激活时载入）。重启 DSH 或重新加载插件即可；1.0.1 起写操作改走 carrier 的 `handler`，不再被框架的 GET/HEAD 规则拦下 |
 | 设置页保存报 409 | 另一个窗口先改过同一份配置：页面会自动重新载入，确认后重试 |
 | 设置页显示“没有 settings 服务” | 该 profile 未组合 DSH 的 settings（例如极简 CLI 组合）；改 `cordis.patch.yml` 或在插件页用自动生成的表单 |
 | 改了设置但技能没变 | 看日志有没有 `settings applied`；若仍在 `provisioning`，等后台准备完成后会自动重挂 |

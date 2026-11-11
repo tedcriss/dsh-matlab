@@ -114,6 +114,12 @@ test('declares the documented configuration fields', () => {
   ])
 })
 
+test('logs no telemetry unless the user opts back in', () => {
+  // The connector passes the vendor's flag; the vendor's collection is opt-out,
+  // so the opt-out has to be the default.
+  assert.equal(plugin.Config.fields.disableTelemetry._default, true)
+})
+
 test('re-exports the seams documented for integrators', () => {
   for (const name of [
     'assetCandidates',

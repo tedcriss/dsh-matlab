@@ -7,7 +7,7 @@
 - **工具**：来自 MATLAB MCP Server，注册为 `mcp__matlab__<tool>`——`evaluate_matlab_code`、`run_matlab_file`、`run_matlab_test_file`、`check_matlab_code`、`detect_matlab_toolboxes`，以及两个 `guidelines://` 资源。
 - **技能**：来自 MATLAB Agentic Toolkit，由 `dsh-skill-filesystem` 直接从 `skills-catalog/<group>` 加载。默认全量（MATLAB 工具包 24 组 / 158 个技能）；用 `skillGroups` 列组名可收窄，以节省上下文。
 - **Simulink**：若同时安装了 Simulink Agentic Toolkit，它的技能组与 `tools/tools.json` MCP 扩展也会一起接入。
-- **设置页**（`设置 → MATLAB`）：连接状态、按组开关技能、MATLAB 根目录与 MCP Server 路径、下载线路；保存走 DSH 自己的 settings 服务，立即生效、不用重启。
+- **设置页**（`设置 → MATLAB`）：连接状态、按组开关技能（可上下滚动的两列列表，必需组锁定不可关闭）、MATLAB 根目录与 MCP Server 路径、下载线路、更新依赖；保存走 DSH 自己的 settings 服务，立即生效、不用重启。MathWorks 遥测默认关闭。
 - **进度对话框**：首次下载二进制或克隆工具包时出现在右下角，慢线路看得见，而不是像卡死。
 
 ## 不做什么
@@ -30,6 +30,7 @@ MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit checkout 属�
 | `displayMode` | `desktop` | `nodesktop` 不显示 MATLAB 桌面 |
 | `toolCallTimeoutMs` | 600000 | 仿真与测试套件远超 DSH 默认值 |
 | `agentName` | `DeepSeek` | MATLAB 连接时打印的 Agent 名 |
+| `disableTelemetry` | `true` | 向 MCP Server 传 `--disable-telemetry=true`；默认不上报遥测 |
 | `githubProxy` | 沿用 DSH | GitHub 加速前缀；留空则沿用 DSH 自己的设置（`DSHM_GITHUB_PROXY` 或市场里的自定义前缀） |
 | `downloadRegion` | `auto` | `china` 用内置加速线路，`global` 直连；`auto` 跟随 DSH 市场的区域 |
 
@@ -38,5 +39,7 @@ MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit checkout 属�
 ## 诊断
 
 `GET /plugin/matlab/status` 会给出：插件自身的名字与版本（读自 `package.json`）、解析到的 MATLAB 根目录、二进制路径与版本、探测结果（工具与资源名）、已加载技能组及技能数、当前生效的 GitHub 加速（`github.region` / `github.routes` / `server.route`），以及激活期间的告警。
+
+设置页另用五个同源 JSON 路由：`GET /plugin/matlab/{state,progress}` 读取，`POST /plugin/matlab/{config,provision,update}` 写入。写路由在 DSH 的 web carrier 上必须注册为 `handler`（`resource` 只接受 GET/HEAD，其它方法会被框架直接回 405）。
 
 完整字段见 [README](../README.md)，取舍理由见 [DESIGN](../DESIGN.md)。

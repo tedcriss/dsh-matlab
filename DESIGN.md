@@ -112,7 +112,7 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
     skillGroups: [matlab-core, signal-processing]
 ```
 
-`required` 标记仍然被读取并保留在组数据里（它是厂商元数据，用于展示与文档），只是不再决定默认选择。
+`required` 标记现在有两层含义：默认选择仍是全部；用户收窄时，必需组却是**不能排除**的。页面把必需组的勾选框锁定为已选且禁用，“全不选”也保留它们；Host 侧的 `selectSkillGroups` 会在保存的名单缺少必需组时补回，并且按工具包顺序输出。这样厂商“每个用户都需要”的声明不会被一份旧名单或页面 bug 绕过。
 
 插件会自己 `git clone --depth 1` 拿到完整工具包（24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在挂载多少。
 
@@ -191,17 +191,21 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 **配置仍然只有一份。** 页面不写自己的 JSON：它把字段补丁 POST 给 `lib/api.js`，后者调用 `settings.update(profileEntryId, patch, revision)`——DSH 校验 schema、写 profile 补丁、再 reconcile Loader。因此页面能改的字段恰好是 schema 里 `.volatile()` 的那些（`settings.update` 拒绝非 volatile 字段，页面拿到 400），而 `cordis.patch.yml` 与页面互为两种写法；`revision` 用来发现“另一个窗口先改了”（409，页面重新载入）。全选技能组时写 `skillGroups: []`（=全部），厂商以后新增的组会自动纳入，不会因为页面存过一份旧名单而漏掉。
 
-**改完立刻生效，靠的是 Cordis 的 volatile 语义。** volatile 变更不重启插件，只把新值提交进运行中的引用并发 `loader/volatile-update`。插件监听该事件（120 ms 合并一次），dispose 掉两个子插件（技能目录、MCP 桥）再按新值重挂：技能组变 → 只换 `customSkillDirs`；MATLAB 参数、命名空间、超时变 → 重建 MCP 桥。不联网、不重启，日志一行 `settings applied`。若后台正在取依赖，重挂排队到取完（`remountRequested`）。
+**写路由必须是 `handler`，不能是 `resource`。** DSH 的 web carrier 把 `resource` 定义成 Fetch `Request → Response` 的只读形状，只放行 `GET`/`HEAD`；其它方法在函数运行前就被框架回 405（`Allow: GET, HEAD`）。首版把 `/config`、`/provision`、`/update` 也注册成 resource，于是页面上的保存、检查更新、安装依赖全部收到 405，而读状态却正常——这正是 1.0.1 修的回归。现在读路由仍是 resource，三个写路由改用 `handler(req, res)`：自己读有上限的 JSON body、校验 `content-type: application/json` 与同源 `Origin`，并用 JSON 回应每个结果（包括后台任务抛出的失败）。`test/api.test.js` 用一个复刻 carrier 方法规则的本地 HTTP server 覆盖这条边界，避免下次再靠“单元测试直接调 resource”把回归放过去。
+
+**改完立刻生效，靠的是 Cordis 的 volatile 语义。** volatile 变更不重启插件，只把新值提交进运行中的引用并发 `loader/volatile-update`。插件监听该事件（120 ms 合并一次），dispose 掉两个子插件（技能目录、MCP 桥）再按新值重挂：技能组变 → 只换 `customSkillDirs`；MATLAB 参数、命名空间、超时变 → 重建 MCP 桥。重挂时还会重新解析 MATLAB 根与 GitHub 加速线路：前者决定新桥启动哪个 MATLAB，后者决定下一次下载/克隆走哪条线路；若沿用激活时的旧值，页面改了 `matlabRoot` / `githubProxy` 也要等重启才生效。不联网、不重启，日志一行 `settings applied`。若后台正在取依赖，重挂排队到取完（`remountRequested`）。
 
 **进度对话框只是一个槽位。** `shell.overlay` 是框架级浮动层（本身可点击穿透，占用者自己决定 pointer-events），正好放右下角提示；`settings.section` 是“设置里一页”的席位。两个注册都不替换宿主 UI：`id` 用自己的，`order` 只决定排序。组件是手写 React（`client/client.js`），只用 `--dsw-alias-*` 主题变量、不 import 任何客户端基础库——DSH 自己的插件文档说得很直白：基础库 API 会变，一个抛错组件会把整个槽位条目打空。
 
 **“安装完成钩子”在这套框架里不存在。** 插件只有在第一次被 Loader 加载之后才有代码在跑；`pnpm add` 阶段没有任何监听者能接“装好了”。所以“装完就下”落到“首次激活就开始下”：激活只做本地发现（毫秒级），缺的那一半交给后台并立刻开始报进度，界面弹出对话框，宿主 60 秒上限不受影响。`provisionWaitMs` 留给愿意等的 profile。
 
-**数据流很短。** 页面只读 `/plugin/matlab/{state,progress}`、只写 `/plugin/matlab/{config,provision}` 四个同源 JSON 路由；没有 iframe、没有第二套 HTML、没有第二份校验。`phase/progress/groups/config` 就是插件内部那份真相的投影。
+**数据流很短。** 页面只读 `/plugin/matlab/{state,progress}`、只写 `/plugin/matlab/{config,provision,update}` 五个同源 JSON 路由；没有 iframe、没有第二套 HTML、没有第二份校验。`phase/progress/groups/config` 就是插件内部那份真相的投影。
 
 ### 4.12 检查更新：只比版本，不盲目重下
 
 依赖装好之后不会自己变新，而“每次启动都检查”又会把网络探测塞回启动路径。所以更新是**用户发起**的动作：设置页的“检查更新”只做两次很小的只读探测，一个字节的业务数据都不下载。
+
+在用户按下按钮之前，卡片按激活状态显示“当前 …”或“已安装”（MCP Server 用 `--version` 解析出的版本，工具包只报已安装），只有 `updates` 比较结果缺失且产物确实不存在时才写“未安装”。首版把“还没比较”直接渲染成“未安装”，让一个已经挂载了 24 组技能的工具包看起来缺失，这是必须避免的误报：状态投影要么来自磁盘事实，要么明确说“尚未检查”。
 
 - MCP Server 的最新版本来自 GitHub 的 `releases/latest`——与安装时 `releases/latest/download/…` 指向同一个 release；镜像拒绝 `api.github.com` 时退到 `git ls-remote --tags` 取最高 semver。当前版本来自 `matlab-mcp-server --version` 里的 `vX.Y.Z`。只有 `latest > current` 才算更新（逐段数值比较，不是字符串比较），所以镜像晚同步不会触发“降级”。
 - 工具包没有版本号，只能以提交为准：当前 `git -C <checkout> rev-parse HEAD` 与远端 `git ls-remote <repo> HEAD` 不同即有更新，页面显示两边短 sha；相同就是最新。
@@ -244,6 +248,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 | 加速前缀配置非法 | **激活失败**，给出 `https://gh-proxy.com` 这种写法 | 配置错误早失败 |
 | `DSHM_GITHUB_PROXY` 非法 | 告警并忽略该变量，继续解析区域与市场前缀 | 日志一条 warning |
 | 设置页写非 volatile 字段 | 400，页面显示 DSH 的报错 | 只有 `.volatile()` 能从页面改 |
+| 写路由误用 `resource` | 框架对非 GET/HEAD 直接 405，保存/检查/安装全部失效 | 1.0.1 起写路由用 `handler`，并用真 HTTP 测试锁住 |
 | 两个窗口同时改配置 | 409，页面重新载入当前值 | revision 冲突 |
 | profile 没有 `settings` 服务 | 503，页面提示改 `cordis.patch.yml` | 极简组合仍然可配置 |
 | 后台准备期间改设置 | 重挂排队到准备完成，日志随后一行 `settings applied` | 不会出现两套挂载 |
@@ -272,7 +277,8 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 - 下载只从 MathWorks 的 GitHub Release，经可选的反代前缀（仅 `https://`、无凭据/查询串），校验体积下限与文件头（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），先写临时文件再原子改名并置可执行位——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当服务装上；
 - `git clone` 关掉交互式凭据提示（`GIT_TERMINAL_PROMPT=0`），避免无人值守的启动挂在密码输入上；
 - 不读取、不写入 MATLAB 许可证或凭据；`dsh-mcp-client` 默认会清理名字含 `KEY/PASSWORD/SECRET/TOKEN` 的环境变量，插件只补充 `WINDIR`（Windows 上 MATLAB 必需）；
-- 状态路由只读、无副作用，且仅在 profile 里有 `ctx.webServer` 时注册；
+- 状态路由只读、无副作用，且仅在 profile 里有 `ctx.webServer` 时注册；写路由使用 carrier 的 `handler`，校验同源与 `application/json`，body 上限 256 KiB；
+- MathWorks 遥测默认关闭（`disableTelemetry: true`，透传 `--disable-telemetry=true`）；只有用户显式取消勾选才会向 MathWorks 发送使用数据。插件自身不收集、不上报任何遥测；
 - 工具调用本身的高风险（执行任意 MATLAB 代码）由 DSH 既有的权限与审批机制在 `tools/pre-execute` 上治理，插件不另开审批通道，也不弱化它。
 
 ## 8. 验证标准
@@ -287,7 +293,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
 7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
 8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，工具包 24 组 / 158 个技能挂载，真实 MCP 握手 5 工具 / 2 资源，71.6 秒后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
-9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision` 四条路由、非 volatile 拒绝、503 与 409 冲突、405；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂、下载进度的百分比。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
+9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision/update` 五条路由、写路由必须是 `handler`（并用本地 HTTP server 复刻 carrier 的 GET/HEAD 规则做真 POST）、非 volatile 拒绝、503 与 409 冲突、405/415/403、必需技能组无法被排除、遥测默认值；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂（含 MATLAB 根与加速线路重解析）、下载进度的百分比。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
 
 ## 9. 已知限制与后续方向
 
