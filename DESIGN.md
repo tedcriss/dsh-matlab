@@ -146,7 +146,7 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 插件声明了 schemastery `Config`，其中用户会反复调整的字段标了 `.volatile()`，因此可以直接通过 profile 的 `cordis.patch.yml` 或 DSH 自带的配置表单修改；诊断信息通过 `/plugin/matlab/status` 提供。这一层永远够用，也是任何 profile 的最小可用面。
 
-在此基础上才有的“设置 → MATLAB”一页（§4.11）是**可选的表现层**：它只读取同一份配置与状态，写入也走 DSH 的 `settings.update`，所以页面消失（宿主没有 `settings` 服务、客户端 bundle 未加载）不会让配置失去写法。反过来，只有当页面能证明自己“只是另一种写法”时才值得存在——技能组有 24 个、更新依赖要看两侧 Tag，这两件事在表单里确实难读，页面才有理由。
+在此基础上才有的“设置 → MATLAB”一页（§4.11）是**可选的表现层**：它只读取同一份配置与状态，写入也走 DSH 的 `settings.update`，所以页面消失（宿主没有 `settings` 服务、客户端 bundle 未加载）不会让配置失去写法。反过来，只有当页面能证明自己“只是另一种写法”时才值得存在——技能组有 24 个、依赖要看两侧 Tag 并做下载/清空，这两件事在表单里确实难读，页面才有理由。
 
 ### 4.9 `apply` 必须 resolve 为 `undefined`（真实事故）
 
@@ -203,21 +203,23 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 **“安装完成钩子”在这套框架里不存在。** 插件只有在第一次被 Loader 加载之后才有代码在跑；`pnpm add` 阶段没有任何监听者能接“装好了”。所以“装完就下”落到“首次激活就开始下”：激活只做本地发现（毫秒级），缺的那一半交给后台并立刻开始报进度，界面弹出对话框，宿主 60 秒上限不受影响。`provisionWaitMs` 留给愿意等的 profile。
 
-**数据流很短。** 页面只读 `/plugin/matlab/{state,progress}`、只写 `/plugin/matlab/{config,provision,update}` 五个同源 JSON 路由；没有 iframe、没有第二套 HTML、没有第二份校验。`phase/progress/groups/config` 就是插件内部那份真相的投影。
+**数据流很短。** 页面只读 `/plugin/matlab/{state,progress}`、只写 `/plugin/matlab/{config,provision,update,dependencies}` 六个同源 JSON 路由；没有 iframe、没有第二套 HTML、没有第二份校验。`phase/progress/groups/config` 就是插件内部那份真相的投影。
 
-### 4.12 检查更新：只比版本，不盲目重下
+### 4.12 依赖：本地检查 + 在线检查 + 三个动作
 
-依赖装好之后不会自己变新，而“每次启动都检查”又会把网络探测塞回启动路径。所以更新是**用户发起**的动作：设置页的“检查更新”只做两次很小的只读探测，一个字节的业务数据都不下载。
+依赖装好之后不会自己变新，而“每次启动都检查”又会把网络探测塞回启动路径。所以只有**本地检查**是自动的：进入设置页读的就是激活时已经解析好的状态，不额外联网。对官方的检查是**用户发起**的动作：点“检查更新”才做两次很小的只读探测，一个字节的业务数据都不下载。
 
-在用户按下按钮之前，卡片按激活状态显示本地 Tag：MCP Server 用 `--version` 里解析出的 `vX.Y.Z`，工具包用安装目录里 `.dsh-matlab-release.json` 记的 Tag（旧版 `git clone` 的副本没有这个文件，显示“未知”而不是编一个版本）；只有 `updates` 比较结果缺失且产物确实不存在时才写“未安装”。首版把“还没比较”直接渲染成“未安装”，让一个已经挂载了 24 组技能的工具包看起来缺失，这是必须避免的误报：状态投影要么来自磁盘事实，要么明确说“尚未检查”。1.1.2 起卡片是一张三列表（模块 / 本地 Tag / 最新 Tag）：最新列在检查前写“未检查”，检查后**即使与本地相同也写出官方 Tag**——用户问的是“官方现在是哪一版”，不是“要不要更新”。
+卡片是一张三列表（模块 / 本地 Tag / 最新 Tag）：本地列来自 `--version` 里的 `vX.Y.Z` 与安装目录里 `.dsh-matlab-release.json` 记的 Tag（旧版 `git clone` 的副本没有这个文件，显示“未知”而不是编一个版本）；产物确实不存在才写“未安装”。首版把“还没比较”直接渲染成“未安装”，让一个已经挂载了 24 组技能的工具包看起来缺失，这是必须避免的误报：状态投影要么来自磁盘事实，要么明确说“尚未检查”。1.1.3 起同一张卡片取代了原来的“更新依赖”和“维护”两张卡，并给出三个动作：
 
-- MCP Server 的最新版本来自 GitHub 的 `releases/latest`——与安装时 `releases/latest/download/…` 指向同一个 release；某条线路拒绝或限流 `api.github.com` 时，退到发布页本身（`og:url` 里的 tag 就是 `releases/latest` 指向的那个），所以限流不会让检查整体失败。当前版本来自 `matlab-mcp-server --version` 里的 `vX.Y.Z`。只有 `latest > current` 才算更新（逐段数值比较，不是字符串比较），所以镜像晚同步不会触发“降级”。
-- 工具包的版本就是它的 Release Tag（`MATK-2026.11.a`）：安装时写进 `.dsh-matlab-release.json`，检查时与 `releases/latest` 的 tag 直接比较，相等即最新。工具包发的是月度序列，不是 semver，所以不做数值比较。
-- 两条探测都走与安装相同的加速线路，失败时各自记录原因，互不影响。`toolkitRoots` 指向的工具包不参与比较：插件不会替换用户的目录，给出“有更新”只会指向一个它不会执行的动作。
+- **检查更新**：只读探测。MCP Server 与工具包都看 `releases/latest`——与安装时 `releases/latest/download/…` 指向同一个 release；某条线路拒绝或限流 `api.github.com` 时，退到发布页本身（`og:url` 里的 tag 就是 `releases/latest` 指向的那个），所以限流不会让检查整体失败。最新列**即使与本地相同也写出官方 Tag**：用户问的是“官方现在是哪一版”，不是“要不要更新”。
+- **下载最新依赖**：只在两种情况下可点——本地缺少任一产物，或检查后发现官方 Tag 与本地不同。它**不复用**磁盘上的旧副本：先 dispose 正在跑的 MCP 桥与技能目录，删掉插件自己的两份产物，再走与首次安装相同的后台路径重新下载并挂载（`kind: install`）。这样按钮承诺的“最新”是确定的，而不是“旧的 + 补丁”。
+- **清空本地依赖**：删除 `$DSH_HOME/matlab` 下插件安装的二进制与工具包，删前必须过一层二次确认（破坏性动作不能一点就走）。它只动插件自己的文件：`mcpServerPath` 与 `toolkitRoots` 指向的目录从不参与删除，`toolkitRoots` 里的工具包也不参与版本比较——那是用户的目录，不是插件的安装。
 
-真正的替换必须**先停下在跑的那一半**：Windows 不允许替换被进程打开的可执行文件，技能监视器也不该看着目录在自己脚下被重写。于是顺序是 dispose → 替换 → 重新挂载，进度对话框显示 `kind: update`。替换本身也不直接覆盖：工具包先解压到 `<install>.incoming`，**只有完整解压成功**才 `rm` 旧目录并 `rename` 就位（失败时 `.incoming` 被清掉、旧目录原封不动，`scanToolkits` 还会忽略以 `.incoming` 结尾的目录）；二进制的下载本来就走“临时文件 + 原子改名”。更新失败时状态是 `failed` 并写明原因，插件随后用磁盘上的旧副本把技能与 MCP 桥重新挂回来（`recoverAfterFailedUpdate`），所以一次失败的更新不会把可用能力弄没。
+比较规则：MCP Server 是 semver（逐段数值比较，镜像晚同步不会触发“降级”）；工具包是月度发布 Tag（`MATK-2026.11.a`），相等即最新，不做数值比较。
 
-更新只做一次“当前 → 最新”，没有后台轮询或自动更新：静默替换用户正在依赖的工具属于越权（§4.8 的“配置与页面分工”在这里同样适用——每一件影响运行中能力的事都应该由用户按下按钮）。
+真正的替换必须**先停下在跑的那一半**：Windows 不允许替换被进程打开的可执行文件，技能监视器也不该看着目录在自己脚下被重写。工具包先解压到 `<install>.incoming`，**只有完整解压成功**才 `rm` 旧目录并 `rename` 就位（失败时 `.incoming` 被清掉）；二进制走“临时文件 + 原子改名”。更新失败时状态是 `failed` 并写明原因，插件随后用磁盘上的旧副本把技能与 MCP 桥重新挂回来（`recoverAfterFailedUpdate`），所以一次失败的更新不会把可用能力弄没。
+
+整条链路都没有后台轮询或自动更新：静默替换用户正在依赖的工具属于越权（§4.8 的“配置与页面分工”在这里同样适用——每一件影响运行中能力的事都应该由用户按下按钮）。
 
 ### 4.13 让 MATLAB 显示 “DeepSeek”：一个只改一条消息的 stdio 桥
 
@@ -297,7 +299,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
 7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
 8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，`MATK-2026.11.a` 源码包（3.36 MB / 1433 个文件）2.4 秒装完并挂上 24 组 / 158 个技能，真实 MCP 握手 5 工具 / 2 资源，随后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
-9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision/update` 五条路由、写路由必须是 `handler`（并用本地 HTTP server 复刻 carrier 的 GET/HEAD 规则做真 POST）、非 volatile 拒绝、503 与 409 冲突、405/415/403、必需技能组无法被排除、遥测默认值；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂（含 MATLAB 根与加速线路重解析）、下载进度的百分比。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
+9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision/update/dependencies` 六条路由、写路由必须是 `handler`（并用本地 HTTP server 复刻 carrier 的 GET/HEAD 规则做真 POST）、非 volatile 拒绝、503 与 409 冲突、405/415/403、必需技能组无法被排除、遥测默认值；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂（含 MATLAB 根与加速线路重解析）、下载进度的百分比、清空依赖（只删插件自己的产物并清空状态）与“先清后下”的下载顺序。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
 
 ## 9. 已知限制与后续方向
 
@@ -311,5 +313,5 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 - **设置页的字段集合等于 volatile 集合**：想从页面改一个字段，就得把它标成 `.volatile()`，代价是该字段的变更不再走“重启插件”的默认语义，而由本插件自己重挂（§4.11）。这是有意的交换：页面要即时生效，就必须自己承担重挂的正确性，而重挂路径有测试覆盖；若将来某个字段需要“重启才生效”的语义，就别把它放进页面。
 - **进度对话框不做取消**：一次下载开始后不能在页面里中途取消；关掉对话框只是隐藏，后台继续（这正是“不阻塞启动”的另一面）。要中止只能退出宿主进程。
 - **stdio 路径上多一个桥进程**（§4.13）：只改 initialize，其余透传；如果将来 DSH 的 MCP 客户端支持 `clientInfo.title`，这个桥应当直接删掉。
-- **更新只由用户触发**：没有后台轮询、没有自动更新（§4.12）。想“始终最新”的部署可以自己跑一次 HTTP 调用 `POST /plugin/matlab/update`，但插件不会替人决定。
+- **更新只由用户触发**：没有后台轮询、没有自动更新（§4.12）。想“始终最新”的部署可以自己跑一次 HTTP 调用 `POST /plugin/matlab/dependencies`（`{"action":"download"}`），但插件不会替人决定；清空依赖同理，必须用户确认。
 - **外部安装器不再参与**：`~/.matlab/agentic-toolkits` 与它的 `config.json` 都不再被读取（§4.4），所以安装器里选的 MATLAB 版本偏好不再影响 DSH；多版本共存时请显式设 `matlabRoot`。

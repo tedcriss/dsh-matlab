@@ -98,27 +98,32 @@ window.__ModuleLoader__.load({
         waitHint: '0 表示首次准备完全在后台进行，不阻塞启动；最大不超过 60000。',
         watch: '监视工具包变化',
         watchHint: '工具包更新后自动重载技能目录。',
-        maintenance: '维护',
-        maintenanceHint: '检查二进制与工具包是否就绪；缺什么就下载什么，全程在后台进行。',
-        updatesTitle: '更新依赖',
-        updatesHint: '检查 MathWorks 与工具包仓库发布的最新版本；只有比当前新时才下载。更新会先停掉正在运行的 MCP 桥与技能目录，再重新挂载。',
+        dependenciesTitle: '依赖',
+        dependenciesHint: '进入本页时已读取本地依赖与版本；点“检查更新”读取官方最新 Tag。只有在本地缺失依赖、或检查后发现更新时，才能下载最新依赖。',
         artifactColumn: '模块',
         localTagColumn: '本地 Tag',
         latestTagColumn: '最新 Tag',
         unknownTag: '未知',
         notChecked: '未检查',
         checkUpdates: '检查更新',
-        updateNow: '更新依赖',
+        downloadLatest: '下载最新依赖',
+        downloadBlocked: '本地已是最新；先检查更新，确认有更新后才可下载',
+        downloading: '正在下载…',
+        removeLocal: '清空本地依赖',
+        removing: '正在清空…',
+        removed: '本地依赖已清空',
+        removeBusy: '有下载正在进行，完成后再清空',
+        confirmRemoveTitle: '清空本地依赖？',
+        confirmRemoveBody: '将删除插件已下载的 MATLAB MCP Server 与 Agentic Toolkit（$DSH_HOME/matlab 下由本插件安装的文件），不会动你的 MATLAB 安装、mcpServerPath 或 toolkitRoots 指向的目录。删除后 MATLAB 工具与技能会不可用，需要重新下载。',
+        confirmRemoveCancel: '取消',
+        confirmRemoveConfirm: '确认删除',
         checking: '正在检查…',
-        updating: '正在更新…',
         upToDate: '已是最新',
         checkFailed: '检查失败，原因见上方',
         updateAvailable: '有可用更新',
         notInstalled: '未安装',
         toolkitLabel: '工具包',
         updateKindTitle: '正在更新 MATLAB 依赖',
-        installMissing: '检查并安装缺失依赖',
-        installed: '依赖已就绪',
         retry: '重试',
         progressTitle: '正在准备 MATLAB 依赖',
         progressToolkit: '正在下载 MATLAB Agentic Toolkit 发布包…',
@@ -205,27 +210,32 @@ window.__ModuleLoader__.load({
         waitHint: '0 keeps the first fetch entirely in the background; 60000 is the useful maximum.',
         watch: 'Watch the toolkit',
         watchHint: 'Reload the skill catalog when the toolkit changes on disk.',
-        maintenance: 'Maintenance',
-        maintenanceHint: 'Check the binary and the toolkit; anything missing is fetched in the background.',
-        updatesTitle: 'Updates',
-        updatesHint: 'Compares the installed artifacts with the newest published ones; only a newer version is downloaded. The running MCP bridge and skill catalog are stopped and remounted around the update.',
+        dependenciesTitle: 'Dependencies',
+        dependenciesHint: 'Entering this page already read the local artifacts and their versions; "Check for updates" reads the newest published tags. Downloading is offered only when something is missing or the check found a newer tag.',
         artifactColumn: 'Artifact',
         localTagColumn: 'Local tag',
         latestTagColumn: 'Latest tag',
         unknownTag: 'unknown',
         notChecked: 'not checked',
         checkUpdates: 'Check for updates',
-        updateNow: 'Update dependencies',
+        downloadLatest: 'Download the newest',
+        downloadBlocked: 'Everything local is current; run a check first, then download once it reports an update',
+        downloading: 'Downloading…',
+        removeLocal: 'Delete local dependencies',
+        removing: 'Deleting…',
+        removed: 'The local dependencies were deleted',
+        removeBusy: 'A download is running; delete when it finishes',
+        confirmRemoveTitle: 'Delete the local dependencies?',
+        confirmRemoveBody: 'This deletes the MATLAB MCP Server and Agentic Toolkit copies this plugin downloaded under $DSH_HOME/matlab. Your MATLAB installation, mcpServerPath, and toolkitRoots folders are untouched. MATLAB tools and skills stop working until they are downloaded again.',
+        confirmRemoveCancel: 'Cancel',
+        confirmRemoveConfirm: 'Delete',
         checking: 'Checking…',
-        updating: 'Updating…',
         upToDate: 'Up to date',
         checkFailed: 'Check failed; see the reason above',
         updateAvailable: 'Update available',
         notInstalled: 'not installed',
         toolkitLabel: 'Toolkit',
         updateKindTitle: 'Updating MATLAB dependencies',
-        installMissing: 'Check and install what is missing',
-        installed: 'Dependencies are ready',
         retry: 'Retry',
         progressTitle: 'Preparing MATLAB dependencies',
         progressToolkit: 'Downloading the MATLAB Agentic Toolkit release…',
@@ -298,6 +308,8 @@ window.__ModuleLoader__.load({
 .mp-btn:hover:not(:disabled){border-color:var(--dsw-alias-brand-primary)}
 .mp-btn:disabled{opacity:.5;cursor:default}
 .mp-btn-primary{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:#fff}
+.mp-btn-danger{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
+.mp-btn-danger:hover:not(:disabled){background:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary);color:#fff}
 .mp-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .mp-badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);white-space:nowrap}
 .mp-badge-success{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
@@ -330,6 +342,9 @@ window.__ModuleLoader__.load({
 .mp-tags-tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;min-width:0;overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
 .mp-tags-tag-idle{color:var(--dsw-alias-label-secondary);font-family:inherit}
 .mp-tags-error{grid-column:1 / -1}
+.mp-modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,17,20,.45)}
+.mp-modal-card{width:min(460px,100%);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 20px 56px rgba(0,0,0,.28);padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.mp-modal-title{font-size:14px;font-weight:600;margin:0}
 .mp-toast{position:fixed;right:20px;bottom:20px;width:320px;max-width:calc(100vw - 40px);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
 .mp-toast-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:600}
 .mp-toast-close{border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
@@ -401,12 +416,13 @@ window.__ModuleLoader__.load({
         hint === undefined ? null : h('p', { className: 'mp-hint', style: { marginLeft: 22 } }, hint))
     }
 
-    function Button({ children, onClick, disabled, variant }) {
+    function Button({ children, onClick, disabled, variant, title }) {
       return h('button', {
         type: 'button',
-        className: `mp-btn${variant === 'primary' ? ' mp-btn-primary' : ''}`,
+        className: `mp-btn${variant === 'primary' ? ' mp-btn-primary' : ''}${variant === 'danger' ? ' mp-btn-danger' : ''}`,
         onClick,
         disabled: disabled === true,
+        title,
       }, children)
     }
 
@@ -648,15 +664,6 @@ window.__ModuleLoader__.load({
         }))
     }
 
-    function MaintenanceCard({ t, busy, onInstall, onRefresh }) {
-      return h('div', { className: 'mp-card' },
-        h('h2', { className: 'mp-card-title' }, t('maintenance')),
-        h('p', { className: 'mp-hint' }, t('maintenanceHint')),
-        h('div', { className: 'mp-actions' },
-          h(Button, { variant: 'primary', onClick: onInstall, disabled: busy }, t('installMissing')),
-          h(Button, { onClick: onRefresh }, t('refresh'))))
-    }
-
     /**
      * The release tag inside a version line.
      *
@@ -694,34 +701,50 @@ window.__ModuleLoader__.load({
           : h('span', { className: 'mp-error mp-tags-error' }, status.error))
     }
 
-    function UpdatesCard({ t, state, busy, checking, onCheck, onUpdate }) {
+    /**
+     * One card for the local artifacts: what is installed, what is published, and
+     * the three things a user can do about it.
+     *
+     * Local presence and tags come from the state the page already loaded, so
+     * entering the page is itself the local check; only "what is published"
+     * needs the online probe behind {@link onCheck}.
+     */
+    function DependenciesCard({ t, state, busy, checking, working, onCheck, onDownload, onRemove }) {
       const updates = state.updates
+      const serverInstalled = state.server !== null && state.server !== undefined
+      const toolkitInstalled = state.toolkit.length > 0
+      const missing = !serverInstalled || !toolkitInstalled
       // Before the first check there is no comparison, but the page already
       // knows what is installed; reporting "not installed" from a missing
       // comparison is what made a working catalog look broken.
       const server = updates?.server ?? {
-        installed: state.server !== null && state.server !== undefined,
+        installed: serverInstalled,
         current: releaseTag(state.server?.version),
         outdated: false,
       }
       const toolkit = updates?.toolkit ?? {
-        installed: state.toolkit.length > 0,
+        installed: toolkitInstalled,
         // The tag a managed install recorded; an older `git` checkout has none.
         current: state.toolkitRelease?.tag,
         outdated: false,
       }
-      const outdated = updates !== null && (updates.toolkit?.outdated === true || updates.server?.outdated === true)
+      const outdated = updates !== null && (server.outdated === true || toolkit.outdated === true)
+      // "Download the newest" is offered when something is missing, or when the
+      // check found a newer published tag — never as a blind re-download.
+      const canDownload = missing || outdated
       const failed = updates !== null && (
-        (updates.server?.error !== undefined && updates.server.error !== null)
-        || (updates.toolkit?.error !== undefined && updates.toolkit.error !== null))
+        (server.error !== undefined && server.error !== null)
+        || (toolkit.error !== undefined && toolkit.error !== null))
       const summary = outdated
         ? t('updateAvailable')
         : failed
           ? t('checkFailed')
           : t('upToDate')
+      const workingDownload = working === 'download'
+      const workingRemove = working === 'remove'
       return h('div', { className: 'mp-card' },
-        h('h2', { className: 'mp-card-title' }, t('updatesTitle')),
-        h('p', { className: 'mp-hint' }, t('updatesHint')),
+        h('h2', { className: 'mp-card-title' }, t('dependenciesTitle')),
+        h('p', { className: 'mp-hint' }, t('dependenciesHint')),
         h('div', { className: 'mp-tags', role: 'table' },
           h('div', { className: 'mp-tags-row mp-tags-head', role: 'row' },
             h('span', { role: 'columnheader' }, t('artifactColumn')),
@@ -732,8 +755,30 @@ window.__ModuleLoader__.load({
           h(UpdateRow, { t, label: t('toolkitLabel'), status: toolkit, checked: updates !== null })),
         updates === null ? null : h('p', { className: 'mp-note' }, summary),
         h('div', { className: 'mp-actions' },
-          h(Button, { onClick: onCheck, disabled: busy || checking }, checking ? t('checking') : t('checkUpdates')),
-          outdated ? h(Button, { variant: 'primary', onClick: onUpdate, disabled: busy }, t('updateNow')) : null))
+          h(Button, { onClick: onCheck, disabled: busy || checking || working !== null }, checking ? t('checking') : t('checkUpdates')),
+          h(Button, {
+            variant: 'primary',
+            onClick: onDownload,
+            disabled: busy || working !== null || !canDownload,
+            title: canDownload ? undefined : t('downloadBlocked'),
+          }, workingDownload ? t('downloading') : t('downloadLatest')),
+          h(Button, {
+            variant: 'danger',
+            onClick: onRemove,
+            disabled: busy || working !== null || (!serverInstalled && !toolkitInstalled),
+          }, workingRemove ? t('removing') : t('removeLocal'))))
+    }
+
+    /** The confirmation the destructive action must pass through. */
+    function ConfirmRemove({ t, busy, onCancel, onConfirm }) {
+      return h('div', { className: 'mp-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('confirmRemoveTitle') },
+        h('div', { className: 'mp-modal-card' },
+          h('h3', { className: 'mp-modal-title' }, t('confirmRemoveTitle')),
+          h('p', { className: 'mp-hint' }, t('confirmRemoveBody')),
+          h('div', { className: 'mp-actions' },
+            h(Button, { onClick: onCancel, disabled: busy }, t('confirmRemoveCancel')),
+            h(Button, { variant: 'danger', onClick: onConfirm, disabled: busy },
+              busy ? t('removing') : t('confirmRemoveConfirm')))))
     }
 
     /**
@@ -760,6 +805,10 @@ window.__ModuleLoader__.load({
       const [initialSelected, setInitialSelected] = useState(() => new Set())
       const [busy, setBusy] = useState(false)
       const [checking, setChecking] = useState(false)
+      // `download` / `remove` are long enough to need their own labels; `null`
+      // means no dependency action is in flight.
+      const [working, setWorking] = useState(null)
+      const [confirmRemove, setConfirmRemove] = useState(false)
       const [message, setMessage] = useState(null)
       const initialDraft = useRef(null)
 
@@ -834,23 +883,6 @@ window.__ModuleLoader__.load({
         }
       }, [draft, state, groups, selected, load, t])
 
-      const install = useCallback(async () => {
-        setBusy(true)
-        setMessage(null)
-        try {
-          const outcome = await postJson('/plugin/matlab/provision')
-          await load(false)
-          if (outcome.started !== true) {
-            const missing = Array.isArray(outcome.missing) ? outcome.missing : []
-            setMessage({ tone: 'success', text: missing.length === 0 ? t('installed') : t('checking') })
-          }
-        } catch (cause) {
-          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
-        } finally {
-          setBusy(false)
-        }
-      }, [load, t])
-
       const check = useCallback(async () => {
         setChecking(true)
         setMessage(null)
@@ -866,17 +898,32 @@ window.__ModuleLoader__.load({
         }
       }, [load, t])
 
-      const update = useCallback(async () => {
-        setBusy(true)
+      const download = useCallback(async () => {
+        setWorking('download')
         setMessage(null)
         try {
-          const outcome = await postJson('/plugin/matlab/update', {})
+          const outcome = await postJson('/plugin/matlab/dependencies', { action: 'download' })
           await load(false)
-          if (outcome.started !== true) setMessage({ tone: 'success', text: t('upToDate') })
+          if (outcome.started !== true) setMessage({ tone: 'warn', text: t('checking') })
         } catch (cause) {
           setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
         } finally {
-          setBusy(false)
+          setWorking(null)
+        }
+      }, [load, t])
+
+      const remove = useCallback(async () => {
+        setWorking('remove')
+        setMessage(null)
+        try {
+          await postJson('/plugin/matlab/dependencies', { action: 'remove' })
+          setConfirmRemove(false)
+          await load()
+          setMessage({ tone: 'success', text: t('removed') })
+        } catch (cause) {
+          setMessage({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+        } finally {
+          setWorking(null)
         }
       }, [load, t])
 
@@ -890,22 +937,23 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'mp-page' },
         h(Styles),
         h(StatusCard, { t, state, onRefresh: () => { void load() } }),
-        // The update card follows the status card: "what is installed / what is
-        // published" belongs next to the state it compares, before the long
-        // groups list.
-        h(UpdatesCard, {
+        // The dependencies card follows the status card: "what is installed /
+        // what is published" belongs next to the state it compares, before the
+        // long groups list.
+        h(DependenciesCard, {
           t,
           state,
           busy,
           checking,
+          working,
           onCheck: () => { void check() },
-          onUpdate: () => { void update() },
+          onDownload: () => { void download() },
+          onRemove: () => setConfirmRemove(true),
         }),
         h(GroupsCard, { t, state, selected, onSelected: setSelected }),
         h(MatlabCard, { t, state, draft, onDraft: setDraft }),
         h(ServerCard, { t, state, draft, onDraft: setDraft }),
         h(NetworkCard, { t, state, draft, onDraft: setDraft }),
-        h(MaintenanceCard, { t, busy, onInstall: () => { void install() }, onRefresh: () => { void load(true) } }),
         h(SaveBar, {
           t,
           busy,
@@ -918,7 +966,15 @@ window.__ModuleLoader__.load({
             setSelected(new Set(initialSelected))
             setMessage(null)
           },
-        }))
+        }),
+        confirmRemove
+          ? h(ConfirmRemove, {
+            t,
+            busy: working === 'remove',
+            onCancel: () => setConfirmRemove(false),
+            onConfirm: () => { void remove() },
+          })
+          : null)
     }
 
     /** The frame-wide progress dialog, driven by the Host's progress record. */

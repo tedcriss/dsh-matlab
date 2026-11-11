@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -823,4 +823,92 @@ test('a toolkit the user configured is never compared with a release or replaced
   // folder the user pointed at, so nothing offers to overwrite it.
   const outcome = (await postJson(route(API_PATHS.update), {})).json
   assert.equal(outcome.started, false)
+})
+
+/** Whether a path exists, whatever kind it is. */
+async function exists(path) {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+test('the remove action deletes only the plugin-managed artifacts and clears the status', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const dataRoot = join(dir, 'dsh-home', 'matlab')
+  await mkdir(join(dataRoot, 'bin'), { recursive: true })
+  const binary = await makeBinary(join(dataRoot, 'bin'))
+  const toolkit = await makeToolkit(join(dataRoot, 'toolkits'))
+  const webServer = recordingWebServer()
+  const { ctx } = fakeContext({ skills: {}, webServer })
+
+  await activate(ctx, baseConfig({ mcpServerPath: binary }), seams(binary))
+  const route = path => webServer.registered.find(entry => entry.path === path)
+
+  const removed = await postJson(route(API_PATHS.dependencies), { action: 'remove' })
+  assert.equal(removed.status, 200)
+  assert.deepEqual(removed.json.artifacts, ['toolkit', 'server'])
+  assert.equal(await exists(binary), false)
+  assert.equal(await exists(toolkit), false)
+
+  const view = await (await route(API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))).json()
+  assert.deepEqual(view.toolkit, [])
+  assert.equal(view.server, null)
+  assert.equal(view.toolkitRelease, null)
+  assert.equal(view.updates, null)
+})
+
+test('the download action cleans the old artifacts before fetching the newest ones', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const dataRoot = join(dir, 'dsh-home', 'matlab')
+  await mkdir(join(dataRoot, 'bin'), { recursive: true })
+  const oldBinary = await makeBinary(join(dataRoot, 'bin'))
+  const oldToolkit = await makeToolkit(join(dataRoot, 'toolkits'))
+  const webServer = recordingWebServer()
+  const { ctx } = fakeContext({ skills: {}, webServer })
+  const calls = []
+  let requested
+
+  await activate(ctx, baseConfig({ mcpServerPath: oldBinary }), {
+    ...seams(oldBinary),
+    readToolkitRelease: async () => ({ tag: 'MATK-2026.11.a', installedAt: '2026-11-05T23:18:23.000Z' }),
+    installToolkit: async () => {
+      calls.push('install-toolkit')
+      // The promised behaviour: the old copy is gone before the fetch starts.
+      assert.equal(await exists(oldToolkit), false, 'the old toolkit must be removed first')
+      const root = await makeToolkit(join(dataRoot, 'toolkits'), ['core'])
+      return { root, tag: 'MATK-2026.11.a', route: 'https://gh-proxy.com' }
+    },
+    ensureMcpServer: async options => {
+      calls.push('ensure-server')
+      requested = options
+      assert.equal(await exists(oldBinary), false, 'the old binary must be removed first')
+      return { path: oldBinary, source: 'download', downloaded: true, route: 'https://gh-proxy.com' }
+    },
+  })
+
+  const route = path => webServer.registered.find(entry => entry.path === path)
+  const accepted = await postJson(route(API_PATHS.dependencies), { action: 'download' })
+  assert.equal(accepted.status, 202)
+
+  let view = await (await route(API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))).json()
+  for (let attempt = 0; attempt < 60 && view.phase !== 'ready'; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+    view = await (await route(API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))).json()
+  }
+  assert.deepEqual(calls, ['install-toolkit', 'ensure-server'])
+  assert.equal(requested.autoProvision, true, 'the explicit download must work even with autoProvision off')
+  assert.equal(view.phase, 'ready')
+  assert.equal(view.toolkitRelease.tag, 'MATK-2026.11.a')
+  assert.equal(view.server.downloaded, true)
 })

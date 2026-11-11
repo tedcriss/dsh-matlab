@@ -228,6 +228,38 @@ test('serves state, progress, config, and provision routes', async () => {
   assert.equal(wrongMethod.headers.allow, 'POST')
 })
 
+test('downloads the newest dependencies or deletes the local ones', async () => {
+  const settings = { update: async () => {}, describe: () => [{ ns: 'matlab-agentic', revision: 1 }] }
+  const { ctx, registered } = fakeContext({ settings, webServer: {} })
+  const calls = []
+  const state = fakeState({
+    ctx,
+    downloadDependencies: async () => {
+      calls.push('download')
+      return { started: true, phase: 'provisioning' }
+    },
+    removeDependencies: async () => {
+      calls.push('remove')
+      return { removed: true, artifacts: ['toolkit', 'server'] }
+    },
+  })
+  mountPluginApi(state)
+  const route = registered.find(entry => entry.path === API_PATHS.dependencies)
+  assert.ok(route, 'the dependencies route must be registered')
+
+  const download = await invoke(route, { body: JSON.stringify({ action: 'download' }) })
+  assert.equal(download.status, 202)
+  assert.equal(download.json.ok, true)
+
+  const remove = await invoke(route, { body: JSON.stringify({ action: 'remove' }) })
+  assert.equal(remove.status, 200)
+  assert.deepEqual(remove.json.artifacts, ['toolkit', 'server'])
+
+  const bad = await invoke(route, { body: JSON.stringify({ action: 'purge' }) })
+  assert.equal(bad.status, 400)
+  assert.deepEqual(calls, ['download', 'remove'])
+})
+
 test('mutations are handlers and reads are resources, the two carrier shapes', () => {
   const settings = { update: async () => {}, describe: () => [{ ns: 'matlab-agentic', revision: 1 }] }
   const { ctx, registered } = fakeContext({ settings, webServer: {} })
@@ -237,7 +269,7 @@ test('mutations are handlers and reads are resources, the two carrier shapes', (
   assert.equal(typeof byPath(API_PATHS.progress).resource, 'function')
   // The carrier answers any method but GET/HEAD with its own 405 before a
   // resource runs, so a POST route must be a handler or it can never be called.
-  for (const path of [API_PATHS.config, API_PATHS.provision, API_PATHS.update]) {
+  for (const path of [API_PATHS.config, API_PATHS.provision, API_PATHS.update, API_PATHS.dependencies]) {
     assert.equal(typeof byPath(path).handler, 'function', `${path} must be a handler`)
     assert.equal(byPath(path).resource, undefined, `${path} must not be a resource`)
   }
@@ -439,7 +471,7 @@ test('disposes its routes with the carrier', async () => {
     },
   }
   mountPluginApi(state)
-  assert.equal(registered.length, 5)
+  assert.equal(registered.length, 6)
   cleanup()
-  assert.equal(disposed.length, 5)
+  assert.equal(disposed.length, 6)
 })
