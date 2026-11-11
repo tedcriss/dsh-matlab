@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -79,6 +79,24 @@ test('drops a symlink that points outside the toolkit', async t => {
   const result = await extractTarGz(archive, { destination, stripComponents: 1 })
   assert.equal(result.files, 1)
   assert.equal(result.skipped, 1)
+})
+
+test('drops a symlink whose target is a shorter path outside a deep root', async t => {
+  // The escape check must not compare string lengths: here the link resolves to
+  // a path SHORTER than the destination (`<base>/a/outside` against
+  // `<base>/a/b/c/d`), which the old slicing form read as "inside" and wrote.
+  const base = await makeDir(t)
+  const destination = join(base, 'a', 'b', 'c', 'd')
+  await mkdir(destination, { recursive: true })
+  const archive = buildTarGz([
+    { path: 'top/link', type: '2', link: '../../outside' },
+    { path: 'top/ok.txt', content: 'ok' },
+  ])
+
+  const result = await extractTarGz(archive, { destination, stripComponents: 1 })
+  assert.equal(result.files, 1)
+  assert.equal(result.skipped, 1)
+  assert.equal(await stat(join(destination, 'link')).then(() => true, () => false), false)
 })
 
 test('rejects a payload that is not gzip', async t => {

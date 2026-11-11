@@ -434,7 +434,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 185 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 186 个用例；插件本身无构建步骤、无运行时依赖
 node scripts/release.mjs --dry-run   # 打 Release 包并校验包内结构（不推远端）
 node scripts/release.mjs             # 打标签、推 origin+gitee、发 Release 并上传资产
 ```

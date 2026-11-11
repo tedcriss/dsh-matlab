@@ -315,6 +315,7 @@ tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plu
 - 子进程只用 argv 传递参数，不拼接 shell 字符串；`shell: false`；
 - 下载只从 MathWorks 的 GitHub（Release 资产或该 tag 的源码包），经可选的反代前缀（仅 `https://`、无凭据/查询串）。**二进制按 GitHub Release API 为每个资产公布的 `sha256` 摘要校验**：摘要优先直连 `api.github.com` 读取（镜像不能同时充当包体与摘要的唯一来源），下载中边写临时文件边算哈希，不一致即删临时文件、拒绝安装并换线路；直连 API 不可达时退回加速线路读取摘要（弱于直连，但仍能发现截断与损坏），联网条件连摘要都取不到时才在日志注明“本次未校验”并继续。字节数与 Release 公布值（或响应 `content-length`）不一致同样视为截断并拒绝；先写临时文件再原子改名并置可执行位，同时保留体积下限与文件头检查（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），防止镜像的 HTML 错误页被当成程序。工具包没有可核对的上游 `digest`（GitHub 按 tag 动态生成源码包），因此校验“完整且结构正确”：`content-length`、gzip CRC、tar 头校验和，**拒绝任何绝对路径、`..` 段或指向目标目录之外的符号链接**，只解压到一个空的暂存目录，完整成功后才替换旧目录——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当程序或技能装上；
 - 解压后不执行任何来自工具包的内容：技能是 `SKILL.md` 文本，`tools/tools.json` 只是 MCP 工具定义；插件本身只运行 MathWorks 的 `matlab-mcp-server` 二进制；
+- **越界判断在 1.2.1 修正过一次**：原先用 `resolve(path).slice(resolve(root).length)` 比较，目标路径比安装根短时会切出空串，于是被判为“目录内”，`../../outside` 这样的符号链接会被真的创建。现在改用 `path.relative()`：`..` 段、绝对路径与跨盘符都算外部；`test/archive.test.js` 增加了“深根 + 短目标”的用例复现该形态（Linux CI 先发现了它，Windows 上恰好没触发）；
 - 不读取、不写入 MATLAB 许可证或凭据；`dsh-mcp-client` 默认会清理名字含 `KEY/PASSWORD/SECRET/TOKEN` 的环境变量，插件只补充 `WINDIR`（Windows 上 MATLAB 必需）；
 - 状态路由只读、无副作用，且仅在 profile 里有 `ctx.webServer` 时注册；写路由使用 carrier 的 `handler`，校验同源与 `application/json`，body 上限 256 KiB；
 - MathWorks 遥测默认关闭（`disableTelemetry: true`，透传 `--disable-telemetry=true`）；只有用户显式取消勾选才会向 MathWorks 发送使用数据。插件自身不收集、不上报任何遥测；
