@@ -92,8 +92,14 @@ test('normalizes a githubProxy prefix and rejects one it cannot use', () => {
   // A configured prefix is a statement the plugin can check, so a broken one
   // must fail activation instead of quietly downloading direct.
   for (const broken of ['http://gh-proxy.com', 'ftp://mirror.example', 'https://user:pw@mirror.example', 'https://mirror.example/?a=1']) {
-    assert.throws(() => resolveOptions(baseConfig({ githubProxy: broken })), /githubProxy must be an HTTPS prefix/u)
+    assert.throws(() => resolveOptions(baseConfig({ githubProxy: broken })), /githubProxy must be one or more HTTPS prefixes/u)
   }
+})
+
+test('accepts several GitHub prefixes and keeps them in order', () => {
+  const options = resolveOptions(baseConfig({ githubProxy: 'https://gh-proxy.com, https://ghfast.top/' }))
+  assert.equal(options.githubProxy, 'https://gh-proxy.com')
+  assert.deepEqual(options.githubProxies, ['https://gh-proxy.com', 'https://ghfast.top'])
 })
 
 test('names the agent MATLAB displays, and rejects a name that could break the greeting', () => {

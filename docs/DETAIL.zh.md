@@ -18,7 +18,9 @@
 
 MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit（最新 Release 的源码包，例如 `MATK-2026.11.a`）属于插件自己，放在 `$DSH_HOME/matlab`；`~/.matlab/agentic-toolkits` 里安装器装的那一份**不会被读取**，插件也不 clone 仓库，本机不需要 `git`。
 
-首次启动会在后台下载二进制并安装工具包——因为 DSH Desktop 会放弃 60 秒内没启动完成的宿主机；准备完成并挂载之前 `status.phase` 是 `provisioning`，右下角有进度对话框。之后可以在设置页检查发布版本（本地 Tag / 官方最新 Tag 两列都给出），只有确实更新时才替换。
+商店安装走本仓库 Release 上的预构建包 `dsh-plugin-matlab.tgz`（约 100 KB，带 `dsh.bundle`，无安装期脚本），不是整仓库源码；装好后市场会热挂载 `matlab-agentic` 这一行，**通常不需要重启 DSH**，刷新页面即可，只有市场提示“热挂载失败”时才重启一次。
+
+首次启动会在后台下载二进制并安装工具包——因为 DSH Desktop 会放弃 60 秒内没启动完成的宿主机；准备完成并挂载之前 `status.phase` 是 `provisioning`，右下角有进度对话框。之后可以在设置页检查发布版本（本地 Tag / 官方最新 Tag 两列都给出），只有确实更新时才替换；不同 Release 的旧目录与旧二进制名会在替换时一起清掉。
 
 ## 值得注意的设置
 
@@ -31,10 +33,10 @@ MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit（最新 Relea
 | `toolCallTimeoutMs` | 600000 | 仿真与测试套件远超 DSH 默认值 |
 | `agentName` | `DeepSeek` | MATLAB 连接时打印的 Agent 名 |
 | `disableTelemetry` | `true` | 向 MCP Server 传 `--disable-telemetry=true`；默认不上报遥测 |
-| `githubProxy` | 沿用 DSH | GitHub 加速前缀；留空则沿用 DSH 自己的设置（`DSHM_GITHUB_PROXY` 或市场里的自定义前缀） |
+| `githubProxy` | 沿用 DSH | GitHub 加速前缀，可写多个（逗号分隔）由插件测速择优；留空则沿用 DSH 自己的设置（`DSHM_GITHUB_PROXY` 或市场里的自定义前缀） |
 | `downloadRegion` | `auto` | `china` 用内置加速线路，`global` 直连；`auto` 跟随 DSH 市场的区域 |
 
-在 github.com 很慢的网络上，首次启动不会直连下载：二进制与工具包发布包都依次尝试 `gh-proxy.com`、`ghfast.top`、直连，每条线路都有超时预算，镜像失效只浪费几十秒而不是整段启动。
+在 github.com 很慢的网络上，首次启动不会直连下载：二进制与工具包发布包都依次尝试 `gh-proxy.com`、`ghfast.top`、直连，每条线路都有超时预算，镜像失效只浪费几十秒而不是整段启动。每次下载前插件会先用 `HEAD` 量一遍候选加速线路，把最快的排到最前；`githubProxy` 可以写多个前缀，它们一起参与这次测量。
 
 下载来的二进制随后会被执行，因此安装不再把镜像当作可信来源：先读取 GitHub Release API 公布的资产 `sha256` 摘要（优先直连 `api.github.com`，镜像不能同时是“包体”和“摘要”的唯一来源），下载中边写临时文件边算哈希，不一致就删文件、拒绝安装；Release 公布的字节数与响应 `content-length` 也会核对。工具包源码包没有可核对的上游摘要，校验的是传输完整与 gzip/tar 结构正确，完整成功后才替换技能目录。
 

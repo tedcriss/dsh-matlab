@@ -175,6 +175,11 @@ export interface ActivationStatus {
   readonly toolkitRelease?: ToolkitRelease
   readonly skills: readonly { readonly name: string; readonly toolkit: string; readonly path: string; readonly skills: number }[]
   readonly probe?: ProbeResult
+  /**
+   * Whether the version read and the startup probe have finished. They run off
+   * the activation path, so `ready` can be reported while this is `pending`.
+   */
+  readonly diagnostics?: 'pending' | 'done'
   readonly warnings: readonly string[]
   readonly error?: string
 }
@@ -276,6 +281,13 @@ export declare const CHINA_GITHUB_ROUTES: readonly string[]
 export declare function normalizeGithubProxy(value: unknown): string | null
 
 /**
+ * Read every acceleration prefix out of one configured value.
+ * @param value - raw `githubProxy` value, comma- or whitespace-separated.
+ * @returns distinct normalized prefixes, in the order they were written.
+ */
+export declare function splitGithubProxies(value: unknown): string[]
+
+/**
  * Wrap a GitHub URL in a prefix route.
  * @param route - prefix, or `null` to go direct.
  * @param url - absolute URL on a github.com-family host.
@@ -284,22 +296,42 @@ export declare function normalizeGithubProxy(value: unknown): string | null
 export declare function throughProxy(route: string | null, url: string): string
 
 /**
- * Build the ordered route chain for one region and prefix.
- * @param options - resolved region and custom prefix.
+ * Build the ordered route chain for one region and prefix list.
+ * @param options - resolved region and custom prefixes.
  * @returns ordered routes ending in the direct one.
  */
 export declare function routesFor(options: {
   region: 'china' | 'global'
-  proxy: string | null
+  proxy?: string | null
+  proxies?: readonly string[]
 }): (string | null)[]
+
+/**
+ * Measure the accelerated routes of one chain and put the fastest first.
+ * @param routes - chain from {@link routesFor}.
+ * @param options - the URL about to be downloaded, seams, and diagnostics.
+ * @returns the same routes, accelerated ones ordered by measured speed.
+ */
+export declare function rankRoutes(
+  routes: readonly (string | null)[],
+  options?: {
+    url?: string
+    fetchImpl?: typeof fetch
+    timeoutMs?: number
+    log?: (entry: { level: string; message: string }) => void
+  },
+): Promise<(string | null)[]>
+
+
 
 /**
  * Resolve the acceleration this process should use.
  * @param options - configured statement, DSH facts, and seams.
- * @returns the effective region, prefix, where each came from, and the routes.
+ * @returns the effective region, prefixes, where each came from, and the routes.
  */
 export declare function resolveGithubAcceleration(options?: {
   githubProxy?: string | null
+  githubProxies?: readonly string[]
   downloadRegion?: 'auto' | 'china' | 'global'
   profileDirectory?: string
   env?: NodeJS.ProcessEnv
@@ -308,6 +340,7 @@ export declare function resolveGithubAcceleration(options?: {
   region: 'china' | 'global'
   regionSource: 'config' | 'market' | 'default'
   proxy: string | null
+  proxies: string[]
   source: 'config' | 'environment' | 'market' | 'none'
   routes: (string | null)[]
 }>

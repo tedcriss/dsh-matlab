@@ -18,7 +18,9 @@ It runs no MATLAB code itself, copies no `SKILL.md`, and rewrites nothing under 
 
 MATLAB R2021a or later. The MCP Server binary and the Agentic Toolkit (the newest release's source archive, for example `MATK-2026.11.a`) belong to the plugin and live in `$DSH_HOME/matlab`; a MathWorks installer copy under `~/.matlab/agentic-toolkits` is deliberately not read, and nothing is cloned, so `git` is not required.
 
-A first start downloads the binary and installs the toolkit release in the background, because DSH Desktop abandons a host start that has not finished within 60 seconds; `status.phase` is `provisioning` until the fetch lands and mounts, and a progress dialog shows what is happening. The Settings page can check the published releases later — it shows the local tag and the newest published tag side by side — and replaces an artifact only when the two differ.
+The store installs this plugin from the prebuilt `dsh-plugin-matlab.tgz` attached to every release of this repository (about 100 KB, declares `dsh.bundle`, runs no install script) instead of the whole repository source. After installing, the market mounts the `matlab-agentic` row live, so a **DSH restart is normally not needed** — refresh the page; restart only when the market reports that the live mount failed.
+
+A first start downloads the binary and installs the toolkit release in the background, because DSH Desktop abandons a host start that has not finished within 60 seconds; `status.phase` is `provisioning` until the fetch lands and mounts, and a progress dialog shows what is happening. The Settings page can check the published releases later — it shows the local tag and the newest published tag side by side — and replaces an artifact only when the two differ; a catalog left by another release and a binary under an older asset name are replaced or removed on the way.
 
 ## Settings worth knowing
 
@@ -31,10 +33,10 @@ A first start downloads the binary and installs the toolkit release in the backg
 | `toolCallTimeoutMs` | 600000 | Simulations and test suites exceed the DSH default |
 | `agentName` | `DeepSeek` | The name MATLAB prints when the agent connects |
 | `disableTelemetry` | `true` | Passes `--disable-telemetry=true`; no data is sent to MathWorks by default |
-| `githubProxy` | follows DSH | HTTPS GitHub acceleration prefix; empty reuses DSH's own setting (`DSHM_GITHUB_PROXY` or the market's custom prefix) |
+| `githubProxy` | follows DSH | HTTPS GitHub acceleration prefixes, comma-separated and measured before a download; empty reuses DSH's own setting (`DSHM_GITHUB_PROXY` or the market's custom prefix) |
 | `downloadRegion` | `auto` | `china` uses the built-in accelerated routes, `global` goes direct; `auto` follows DSH's market |
 
-On a network where github.com is slow, the first start reuses the acceleration DSH already configured instead of downloading direct: the binary and the toolkit release archive both try `gh-proxy.com`, then `ghfast.top`, then the origin. Every route is bounded, so a dead mirror costs seconds rather than the whole start.
+On a network where github.com is slow, the first start reuses the acceleration DSH already configured instead of downloading direct: the binary and the toolkit release archive both try `gh-proxy.com`, then `ghfast.top`, then the origin. Every route is bounded, so a dead mirror costs seconds rather than the whole start. Before a download the plugin measures the accelerated routes with a `HEAD` and moves the fastest first, so the order is a measurement rather than a guess; `githubProxy` accepts several prefixes and they join the same measurement.
 
 Because the downloaded binary is executed, the install no longer trusts a mirror with it: the published release asset's `sha256` digest is read from `api.github.com` (direct first, so the mirror cannot also be the only source of the hash), the body is hashed while it streams to a temporary file, and a mismatch deletes the file and refuses the install. The release's byte count and the response's `content-length` are checked too. The toolkit archive has no upstream digest to compare, so it is checked for a complete transfer and a valid gzip/tar structure before it replaces the catalog.
 

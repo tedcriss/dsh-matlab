@@ -1,0 +1,41 @@
+# Attach the prebuilt plugin archive to every release tag.
+#
+# The store installs this plugin from `releases/latest/download/dsh-plugin-matlab.tgz`,
+# so the asset is what makes a tag installable. `scripts/release.mjs` uploads it
+# as part of a local release; this workflow is the safety net for a tag pushed by
+# hand (or a release created from the GitHub UI), so the two paths cannot drift
+# into a tag without an asset.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test
+        run: npm test
+      - name: Pack the plugin
+        run: |
+          npm pack --pack-destination dist
+          version=$(node -p "require('./package.json').version")
+          # The asset name carries no version: `latest/download/` takes the name
+          # literally, so a versioned name would 404 the day the next tag ships.
+          mv "dist/dsh-plugin-matlab-$version.tgz" dist/dsh-plugin-matlab.tgz
+      - name: Create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "dsh-plugin-matlab $GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" dist/dsh-plugin-matlab.tgz --clobber

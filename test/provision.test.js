@@ -31,10 +31,22 @@ function archiveFor(tag = TAGS.tag) {
 /**
  * A fake GitHub: `releases/latest` answers the tag, the archive URL answers the
  * bytes. `onRequest` may throw to fail one route.
+ *
+ * A `HEAD` request is the route probe the download sends before it picks a
+ * mirror, so it is tracked apart from the downloads: a route that fails the
+ * body still answers the probe, and an assertion about "which routes were
+ * tried for the archive" is about the bodies.
  */
 function fakeGithub(options = {}) {
   const requests = []
+  const probes = []
   const fetchImpl = async (url, init) => {
+    if (init?.method === 'HEAD') {
+      probes.push(String(url))
+      // These mirrors refuse HEAD, so the chain keeps the order the region
+      // resolved; the speed probe has its own tests in github.test.js.
+      return new Response(null, { status: 405 })
+    }
     requests.push(String(url))
     options.onRequest?.(String(url))
     if (String(url).includes('/api.github.com/')) {
@@ -48,7 +60,7 @@ function fakeGithub(options = {}) {
       headers: { 'content-type': 'application/x-gzip' },
     })
   }
-  return { fetchImpl, requests }
+  return { fetchImpl, requests, probes }
 }
 
 async function exists(path) {
@@ -239,7 +251,7 @@ test('a failed update keeps the previous catalog and its files', async t => {
   assert.equal(await exists(`${destination}.incoming`), false)
 })
 
-test('an install leaves an existing catalog alone', async t => {
+test('an install replaces a catalog left by a different release', async t => {
   const dataRoot = await makeDataRoot(t)
   const destination = join(dataRoot, 'toolkits', 'matlab-agentic-toolkit')
   await mkdir(destination, { recursive: true })
@@ -249,10 +261,31 @@ test('an install leaves an existing catalog alone', async t => {
   const github = fakeGithub()
   const installed = await installToolkit({ kind: 'matlab', dataRoot, routes: [null], fetchImpl: github.fetchImpl, log: () => {} })
 
-  assert.equal(installed.reused, true)
-  assert.equal(installed.tag, 'MATK-2026.10.a')
-  assert.equal(await exists(join(destination, 'old.txt')), true)
+  // The folder belongs to this plugin's install target and its contents came
+  // from another release: overwriting it is the point, and the file only the
+  // old release had must not survive beside the new catalog.
+  assert.equal(installed.reused, undefined)
+  assert.equal(installed.tag, TAGS.tag)
+  assert.equal(await exists(join(destination, 'old.txt')), false)
+  assert.equal(await exists(join(destination, 'skills-catalog', 'core', 'core-skill', 'SKILL.md')), true)
   assert.equal(await exists(`${destination}.incoming`), false)
+})
+
+test('an install reuses an identical catalog instead of replacing it', async t => {
+  const dataRoot = await makeDataRoot(t)
+  const destination = join(dataRoot, 'toolkits', 'matlab-agentic-toolkit')
+  await mkdir(destination, { recursive: true })
+  await writeFile(join(destination, 'same.txt'), 'same')
+  await writeFile(join(destination, '.dsh-matlab-release.json'), JSON.stringify({ tag: TAGS.tag }))
+
+  const github = fakeGithub()
+  const installed = await installToolkit({ kind: 'matlab', dataRoot, routes: [null], fetchImpl: github.fetchImpl, log: () => {} })
+
+  // Two windows may install the same release at once; the copy on disk is
+  // already the answer and replacing it would only risk a half-swapped folder.
+  assert.equal(installed.reused, true)
+  assert.equal(installed.tag, TAGS.tag)
+  assert.equal(await exists(join(destination, 'same.txt')), true)
 })
 
 test('a half-written incoming catalog is not a toolkit', async t => {

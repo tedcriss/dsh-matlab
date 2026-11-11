@@ -185,7 +185,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 `githubProxy` 只接受 `https://` 前缀、不含凭据、查询串与锚点：下载下来的是随后要执行的程序，明文线路等于允许中间人替换它。环境变量里给错值时只告警并忽略（那是运维的设置）；配置里给错值则激活失败，并给出可用的写法——遵循 §5 的“配置错误立刻失败，运行时依赖缺失降级继续”。
 
-线路的用法与公共反代一致：完整目标 URL 作为路径（`{prefix}/{url}`）。二进制的下载与工具包的发布包共享一张表，顺序是**加速线路在前、直连收尾**。这里与 DSH 市场的 git 线路（直连在前）刻意不同：市场只用 git 线路读 ref 广告；这里搬的是几 MB 的包体，慢的正是这一段；直连保底仍在，镜像整体失效时退化为“慢”而不是“启动不了”。
+线路的用法与公共反代一致：完整目标 URL 作为路径（`{prefix}/{url}`）。二进制的下载与工具包的发布包共享一张表，顺序是**加速线路在前、直连收尾**。这里与 DSH 市场的 git 线路（直连在前）刻意不同：市场只用 git 线路读 ref 广告；这里搬的是几 MB 的包体，慢的正是这一段；直连保底仍在，镜像整体失效时退化为“慢”而不是“启动不了”。加速线路之间的先后不再写死：每次下载前用 `HEAD` 量一次（§4.14），快的排前。
 
 有界同样重要：`provisionTimeoutMs`（默认 300 秒）是单次首次准备的总预算，每条线路再加“无响应头 20 秒 / 无数据 30 秒即中止”的看门狗。这样一条死线路最多花掉几十秒；全部线路失败时后台任务把失败写进 `status.error` 与日志，下一次启动重新发现、重新尝试，而不是把启动挂住。
 
@@ -249,6 +249,26 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 - 后写覆盖先写，这与设定本身的语义一致：**一个 MATLAB 只有一份当前文件夹**，两个对话同时调用时，谁最后调用，文件夹就属于谁。
 
 为什么不在 `tools/pre-execute` 里直接改参数：DSH 在 `createExecution` 里就把 `arguments` 深冻结了，`pre-execute` 只能回答 allow/ask/deny；参数只能在传输层改，而这正好是这座桥已经存在的位置。翻车面也小：记录文件缺失或损坏时，桥原样转发调用。
+
+### 4.14 安装本身：Release 包、热挂载、量出来的线路
+
+商店里的 `url:` 是仓库，市场会先把仓库当成 `github:` 源：pnpm 解析 ref、下载整个仓库的 codeload 包、再按源安装——慢的是这几步，出错的也是这几步。1.2.0 起条目改写 `tarball:`：
+
+```yaml
+tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz
+```
+
+市场的 `installTargetFor` 对带 `tarball` 的条目直接 `pnpm add <that URL>`，于是安装变成“一个约 100 KB 的 `.tgz`”，且这个 URL 形态（`releases/latest/download/<不含版本号的文件名>`）正好是市场自己识别“可随 Release 更新”的那一种：它会去 `raw.githubusercontent.com/<repo>/<tag>/package.json` 核对版本，再把下一次安装指到 `releases/download/<tag>/<同一个文件名>`。所以资产名必须**不带版本号**，否则 `latest/download` 在下一个 Release 就 404——这既是商店规范，也是更新的前提。
+
+包内只放运行期文件（`lib/`、`client/`、`locale/`、`icon.svg`、`cordis.patch.yml`、`screenshots.json`）。`assets/settings.png` 留在仓库里给商店截图用，不进包——700 KB 的截图对安装没有任何作用，却正好落在 Windows 查毒最愿意盯的那段时间里；包越小，被占用打断的窗口越小。README 里的截图引用因此改成绝对 URL，GitHub 与 npm 渲染都能取到。
+
+**激活不再等诊断。** 之前 `--version` 与一次性 MCP 握手各要起一个服务进程，二者都在激活路径上；市场给热挂载的预算是 10 秒（`HOT_MOUNT_TIMEOUT_MS`），一个冷机器上加上查毒扫描就可能超时，超时后市场只能告诉你“重启后生效”。现在激活只做“本地发现 → 挂组件 → 返回”，版本与探测交给 `collectDiagnostics()` 在后台跑，结果写回 `status.server.version` / `status.probe`，`status.diagnostics` 从 `pending` 变 `done`。`failOnStartupError` 是唯一例外：那个开关的语义就是“探测失败就别激活”，所以它仍然同步等待并可能拒绝激活。
+
+**“允许覆盖旧版本的文件”落在两处，各有各的理由。** 一是工具包：`installToolkit` 以前遇到已存在的目录就整份复用——哪怕它的 `.dsh-matlab-release.json` 记的是另一个 Release。那等于让“安装最新”在磁盘上留着一份旧目录；现在只有**同一个 tag** 才复用（两个窗口同时装同一版是正常竞态），不同 tag 或没有标记的目录（旧版 `git clone` 的产物）会在完整下载、解压之后被整体替换，旧版本独有的文件不会留在旁边。二是二进制：MathWorks 改过资产名，`matlab-mcp-server-<platform>-<arch>` 与旧的 `matlab-mcp-core-server-<arch>` 会在同一个 `bin/` 里并存；下载成功后把旧名字与 `*.download` 残留一起删掉，才是“这个插件只运行一个服务进程”。
+
+**线路顺序是量出来的。** 区域决定候选前缀，但哪个前缀在这台机器的网络上最快，不是一个能写死的常量（公共前缀的可用性会变，gh-proxy 与 ghfast 的先后也因网络而异）。`rankRoutes()` 在真正下载前对候选加速线路各发一个 `HEAD`（只取响应头，不搬包体），把测到的线路按耗时排前、没测到的保持原序、直连永远收尾；一次下载的测量成本上限 4 秒，探测失败只是“保持原序”，不会把安装变成失败。`githubProxy` 也可以写多个前缀（逗号或空白分隔），它们和区域候选一起参与这次测量——这就是“自动选择加速线路”，而不是让用户抄一条他认为快的地址。
+
+至于插件包自己的目录被 Windows 拒绝改名（`ERR_PNPM_EPERM`），那是 pnpm 的整目录替换与杀毒/索引扫描撞车，不是本插件运行期持有的句柄：包内没有原生模块、没有安装期脚本，二进制与技能都在 `$DSH_HOME/matlab`。能做的只有把要替换的东西变少（上面的包裁剪），并把恢复路径写清楚：市场会把 `package.json` 与 `pnpm-lock.yaml` 恢复原样，退出 DSH 再装一次即可。
 
 ## 5. 失败模式
 

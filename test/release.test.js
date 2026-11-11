@@ -272,10 +272,13 @@ test('streams the body to disk byte for byte', async t => {
 test('walks the acceleration routes in order and reports the one that served', async t => {
   const dir = await tempDirectory(t)
   const hosts = []
-  const fetchImpl = async url => {
+  const fetchImpl = async (url, init) => {
     const text = String(url)
     // Metadata cannot be read here, so the legacy latest/download walk runs.
     if (isReleaseApi(text)) throw new Error('no metadata')
+    // These mirrors refuse the speed probe; the chain then keeps the order the
+    // region resolved rather than inventing one from a failed measurement.
+    if (init?.method === 'HEAD') return new Response(null, { status: 405 })
     hosts.push(new URL(text).host)
     if (text.startsWith('https://gh-proxy.com/')) return new Response('bad gateway', { status: 502 })
     return new Response(executableBytes('win32'), { status: 200 })
@@ -291,6 +294,33 @@ test('walks the acceleration routes in order and reports the one that served', a
   // The prefix receives the whole destination URL, which is what a GitHub
   // prefix expects; only the mirror hosts are contacted, never the origin.
   assert.deepEqual(hosts, ['gh-proxy.com', 'ghfast.top'])
+  assert.equal(installed.route, 'https://ghfast.top')
+})
+
+test('downloads through the mirror the speed probe found fastest', async t => {
+  const dir = await tempDirectory(t)
+  const hosts = []
+  const fetchImpl = async (url, init) => {
+    const text = String(url)
+    if (isReleaseApi(text)) throw new Error('no metadata')
+    if (init?.method === 'HEAD') {
+      // Only the faster route answers the probe; the other one is measured as
+      // absent and keeps its place after it.
+      if (text.startsWith('https://gh-proxy.com/')) throw new Error('no HEAD support')
+      return new Response(null, { status: 200 })
+    }
+    hosts.push(new URL(text).host)
+    return new Response(executableBytes('win32'), { status: 200 })
+  }
+  const installed = await downloadMcpServer({
+    directory: dir,
+    platform: 'win32',
+    arch: 'x64',
+    routes: ['https://gh-proxy.com', 'https://ghfast.top', null],
+    fetchImpl,
+    log: () => {},
+  })
+  assert.deepEqual(hosts, ['ghfast.top'])
   assert.equal(installed.route, 'https://ghfast.top')
 })
 

@@ -3,6 +3,10 @@ node_modules/
 .tmp/
 *.log
 
+# The release archive is built by `scripts/release.mjs` and attached to a Release;
+# the store reads it from there, never from the repository.
+dist/
+
 # Editors and OS noise.
 .DS_Store
 Thumbs.db

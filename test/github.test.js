@@ -9,11 +9,13 @@ import {
   MARKET_STATE_DIR,
   MARKET_STATE_FILE,
   normalizeGithubProxy,
+  rankRoutes,
   readMarketState,
   resolveGithubAcceleration,
   resolveProfileDirectory,
   routeLabel,
   routesFor,
+  splitGithubProxies,
   throughProxy,
 } from '../lib/github.js'
 
@@ -63,6 +65,80 @@ test('builds a chain that always ends in the direct route', () => {
   // A prefix the table already carries heads the chain without repeating itself.
   assert.deepEqual(routesFor({ region: 'china', proxy: 'https://gh-proxy.com' }), [...CHINA_GITHUB_ROUTES, null])
   assert.deepEqual(routesFor({ region: 'global', proxy: 'https://mirror.example' }), ['https://mirror.example', null])
+})
+
+test('keeps every configured prefix in the chain, without duplicates', () => {
+  assert.deepEqual(routesFor({
+    region: 'china',
+    proxies: ['https://a.example', 'https://b.example', 'https://a.example'],
+  }), ['https://a.example', 'https://b.example', ...CHINA_GITHUB_ROUTES, null])
+  assert.deepEqual(routesFor({ region: 'global', proxies: ['https://b.example'] }), ['https://b.example', null])
+})
+
+test('reads a configured prefix list, comma- or whitespace-separated', () => {
+  assert.deepEqual(
+    splitGithubProxies('https://gh-proxy.com, https://ghfast.top\nhttps://mirror.example/github/'),
+    ['https://gh-proxy.com', 'https://ghfast.top', 'https://mirror.example/github'],
+  )
+  // A value with nothing usable in it is empty, which the resolver reports as
+  // one broken setting rather than as "no proxies configured".
+  assert.deepEqual(splitGithubProxies('http://plain.example, not a url'), [])
+  assert.deepEqual(splitGithubProxies(undefined), [])
+})
+
+/** A fetch that answers a HEAD after `delay` ms on the chosen hosts, and GET with 200. */
+function probeFetch(delays, seen = []) {
+  return async (url, init) => {
+    const text = String(url)
+    const host = new URL(text).host
+    seen.push(`${init?.method ?? 'GET'} ${host}`)
+    if (init?.method === 'HEAD') {
+      const delay = delays[host]
+      if (delay === undefined) throw new Error(`no probe answer for ${host}`)
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
+      return new Response(null, { status: 200 })
+    }
+    return new Response('ok', { status: 200 })
+  }
+}
+
+test('puts the fastest accelerated route first and keeps direct last', async () => {
+  const seen = []
+  const ranked = await rankRoutes(['https://a.example', 'https://b.example', null], {
+    url: 'https://github.com/matlab/matlab-mcp-server/releases/latest/download/a.exe',
+    fetchImpl: probeFetch({ 'a.example': 40, 'b.example': 0 }, seen),
+    timeoutMs: 2_000,
+    log: () => {},
+  })
+  assert.deepEqual(ranked, ['https://b.example', 'https://a.example', null])
+  // Only accelerated routes are measured; the direct route is the fallback.
+  assert.deepEqual(seen, ['HEAD a.example', 'HEAD b.example'])
+})
+
+test('keeps the resolved order when no route answers the probe', async () => {
+  const ranked = await rankRoutes(['https://a.example', 'https://b.example', null], {
+    url: 'https://github.com/matlab/matlab-mcp-server/releases/latest/download/a.exe',
+    fetchImpl: probeFetch({}, []),
+    timeoutMs: 2_000,
+    log: () => {},
+  })
+  // Nothing was learned, so nothing is reordered: a failed probe must not pick
+  // a route on the user's behalf.
+  assert.deepEqual(ranked, ['https://a.example', 'https://b.example', null])
+  assert.equal(ranked[ranked.length - 1], null)
+})
+
+test('leaves a chain of one accelerated route alone', async () => {
+  let called = 0
+  const ranked = await rankRoutes(['https://a.example', null], {
+    url: 'https://github.com/matlab/matlab-mcp-server/releases/latest/download/a.exe',
+    fetchImpl: async () => {
+      called += 1
+      return new Response(null, { status: 200 })
+    },
+  })
+  assert.deepEqual(ranked, ['https://a.example', null])
+  assert.equal(called, 0)
 })
 
 test('reads the region and prefix DSH persisted for a profile', async t => {
@@ -197,7 +273,20 @@ test('has no acceleration to follow when nothing is configured', async () => {
     region: 'global',
     regionSource: 'default',
     proxy: null,
+    proxies: [],
     source: 'none',
     routes: [null],
   })
+})
+
+test('keeps every configured prefix when the plugin setting lists several', async () => {
+  const acceleration = await resolveGithubAcceleration({
+    githubProxy: 'https://a.example',
+    githubProxies: ['https://a.example', 'https://b.example'],
+    downloadRegion: 'global',
+    env: {},
+  })
+  assert.equal(acceleration.proxy, 'https://a.example')
+  assert.deepEqual(acceleration.proxies, ['https://a.example', 'https://b.example'])
+  assert.deepEqual(acceleration.routes, ['https://a.example', 'https://b.example', null])
 })

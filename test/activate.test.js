@@ -220,6 +220,92 @@ test('mounts the skill provider and the MCP bridge against MathWorks artifacts',
   assert.equal(status.probe.ok, true)
 })
 
+/** Wait for the off-path server diagnosis to finish, which activation does not. */
+async function diagnosed(status) {
+  for (let attempt = 0; attempt < 200 && status.diagnostics !== 'done'; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 5))
+  }
+  return status
+}
+
+test('activation does not wait for the server version or the startup probe', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const previousHome = process.env.DSH_HOME
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => {
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
+  })
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx } = fakeContext()
+
+  // Both answers are held open: a host that measures activation (the market's
+  // live mount allows ten seconds) must be able to mount this plugin while the
+  // server is still being interrogated.
+  let finishVersion
+  let finishProbe
+  const versionGate = new Promise(resolve => { finishVersion = resolve })
+  const probeGate = new Promise(resolve => { finishProbe = resolve })
+  const status = await activate(ctx, baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+  }), {
+    ...seams(binary),
+    serverVersion: async () => {
+      await versionGate
+      return 'v9.9.9'
+    },
+    probeMcpServer: async () => {
+      await probeGate
+      return { ok: true, tools: [{ name: 'evaluate_matlab_code', description: '' }], resources: [] }
+    },
+  })
+
+  assert.equal(status.phase, 'ready')
+  assert.equal(status.diagnostics, 'pending')
+  assert.equal(status.server.version, undefined)
+  assert.equal(status.probe, undefined)
+
+  finishVersion()
+  finishProbe()
+  await diagnosed(status)
+  assert.equal(status.server.version, 'v9.9.9')
+  assert.equal(status.probe.ok, true)
+})
+
+test('a diagnosis that throws is a warning, not a failed activation', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const previousHome = process.env.DSH_HOME
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => {
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
+  })
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const { ctx } = fakeContext()
+
+  const status = await activate(ctx, baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+  }), {
+    ...seams(binary),
+    serverVersion: async () => {
+      throw new Error('binary cannot start')
+    },
+  })
+  await diagnosed(status)
+
+  assert.equal(status.phase, 'ready')
+  assert.equal(status.diagnostics, 'done')
+  assert.ok(status.warnings.some(warning => /server diagnosis failed: binary cannot start/u.test(warning)))
+})
+
 test('runs the MCP server through the naming bridge, with the agent name MATLAB shows', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
