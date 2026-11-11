@@ -33,7 +33,6 @@ window.__ModuleLoader__.load({
         phase: '阶段',
         matlab: 'MATLAB',
         server: 'MCP Server',
-        version: '版本',
         route: '下载线路',
         tools: '工具',
         resources: '资源',
@@ -140,7 +139,6 @@ window.__ModuleLoader__.load({
         phase: 'Phase',
         matlab: 'MATLAB',
         server: 'MCP Server',
-        version: 'Version',
         route: 'Route',
         tools: 'Tools',
         resources: 'Resources',
@@ -277,7 +275,8 @@ window.__ModuleLoader__.load({
     }
 
     const STYLES = `
-.mp-page{display:flex;flex-direction:column;gap:18px;max-width:760px;padding:4px 2px 40px;color:var(--dsw-alias-label-primary)}
+.mp-page{display:flex;flex-direction:column;gap:18px;max-width:760px;padding:4px 2px 0;color:var(--dsw-alias-label-primary)}
+.mp-savebar{position:sticky;bottom:-1px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px;padding:12px 0 14px;background:var(--dsw-alias-bg-base);border-top:1px solid var(--dsw-alias-border-l1);box-shadow:0 -12px 20px -20px rgba(0,0,0,.45)}
 .mp-card{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
 .mp-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .mp-card-title{font-size:14px;font-weight:600;margin:0}
@@ -465,8 +464,6 @@ window.__ModuleLoader__.load({
           h('dd', null, state.matlab?.root ?? t('notDetected')),
           h('dt', null, t('server')),
           h('dd', null, state.server?.path ?? t('notDetected')),
-          h('dt', null, t('version')),
-          h('dd', null, state.server?.version ?? t('none')),
           h('dt', null, t('route')),
           h('dd', null, routeList.length === 0 ? t('none') : routeList.join(' → ')),
           h('dt', null, t('groups')),
@@ -731,8 +728,15 @@ window.__ModuleLoader__.load({
           outdated ? h(Button, { variant: 'primary', onClick: onUpdate, disabled: busy }, t('updateNow')) : null))
     }
 
+    /**
+     * The page's save bar.
+     *
+     * It is sticky rather than last-in-flow: the page is much taller than the
+     * settings viewport (24 groups plus every card), and a save button nobody
+     * scrolls back to is a save button nobody finds.
+     */
     function SaveBar({ t, busy, dirty, editable, message, onSave, onRevert }) {
-      return h('div', { className: 'mp-actions' },
+      return h('div', { className: 'mp-savebar' },
         h(Button, { variant: 'primary', onClick: onSave, disabled: busy || !dirty || !editable },
           busy ? t('saving') : t('save')),
         h(Button, { onClick: onRevert, disabled: busy || !dirty }, t('revert')),
@@ -878,10 +882,9 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'mp-page' },
         h(Styles),
         h(StatusCard, { t, state, onRefresh: () => { void load() } }),
-        h(GroupsCard, { t, state, selected, onSelected: setSelected }),
-        h(MatlabCard, { t, state, draft, onDraft: setDraft }),
-        h(ServerCard, { t, state, draft, onDraft: setDraft }),
-        h(NetworkCard, { t, state, draft, onDraft: setDraft }),
+        // The update card follows the status card: "what is installed / what is
+        // published" belongs next to the state it compares, before the long
+        // groups list.
         h(UpdatesCard, {
           t,
           state,
@@ -890,6 +893,10 @@ window.__ModuleLoader__.load({
           onCheck: () => { void check() },
           onUpdate: () => { void update() },
         }),
+        h(GroupsCard, { t, state, selected, onSelected: setSelected }),
+        h(MatlabCard, { t, state, draft, onDraft: setDraft }),
+        h(ServerCard, { t, state, draft, onDraft: setDraft }),
+        h(NetworkCard, { t, state, draft, onDraft: setDraft }),
         h(MaintenanceCard, { t, busy, onInstall: () => { void install() }, onRefresh: () => { void load(true) } }),
         h(SaveBar, {
           t,
