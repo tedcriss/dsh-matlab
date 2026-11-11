@@ -199,35 +199,74 @@ function publish(tag, notes, assetPath) {
   const exists = attempt(gh, ['release', 'view', tag]) !== ''
   if (!exists) {
     console.log(`creating the ${tag} release…`)
-    runLive(gh, ['release', 'create', tag, '--title', tag, '--notes', notes])
+    runLive(gh, ['release', 'create', tag, '--title', tag, '--latest', '--notes', notes])
   }
   console.log(`uploading ${ASSET} to ${tag}…`)
   runLive(gh, ['release', 'upload', tag, assetPath, '--clobber'])
   return exists
 }
 
+/** The SHA-256 of a local file. */
+async function fileDigest(path) {
+  return createHash('sha256').update(await readFile(path)).digest('hex')
+}
+
 /**
- * Read the published asset back through its floating URL, which is what the
- * store uses.
+ * Read one URL and return its SHA-256 and length.
  *
- * `releases/latest` and the asset CDN trail the Release by seconds, so the read
- * is retried a few times instead of failing a release whose bytes are fine.
+ * The query string is a cache buster, not part of the GitHub contract: the
+ * floating `latest/download` URL is served through a CDN that keeps answering
+ * with the PREVIOUS release's bytes for a while after a new one is published,
+ * and a verification that reads that cached copy would "confirm" the wrong
+ * file. The parameter is ignored by GitHub's asset route.
  */
-async function verifyPublished() {
-  console.log(`reading back ${TARBALL_URL}…`)
-  let lastStatus = 0
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await fetch(TARBALL_URL, { method: 'GET', redirect: 'follow' })
-    lastStatus = response.status
-    if (response.ok) {
-      const bytes = Buffer.from(await response.arrayBuffer())
-      const digest = createHash('sha256').update(bytes).digest('hex')
-      console.log(`published ${String(bytes.byteLength)} bytes (sha256 ${digest})`)
-      return { bytes: bytes.byteLength, digest }
-    }
-    await new Promise(resolve => setTimeout(resolve, 2_000))
+async function remoteDigest(url, attemptLabel) {
+  const separator = url.includes('?') ? '&' : '?'
+  const response = await fetch(`${url}${separator}cb=${Date.now().toString(36)}`, { redirect: 'follow' })
+  if (!response.ok) throw new Error(`${attemptLabel} answered HTTP ${String(response.status)}`)
+  const bytes = Buffer.from(await response.arrayBuffer())
+  return { bytes: bytes.byteLength, digest: createHash('sha256').update(bytes).digest('hex') }
+}
+
+/**
+ * Prove the release is installable the way the store installs it.
+ *
+ * Two reads, both compared with the local archive: the pinned URL proves the
+ * upload, and the floating URL proves the entry's `releases/latest/download/...`
+ * target. The floating read is retried because `latest` and the CDN trail a new
+ * Release by minutes; a mismatch is reported as what it is — a URL still serving
+ * the previous release — instead of a successful release with the wrong bytes.
+ * @param tag - release tag.
+ * @param assetPath - local archive that was uploaded.
+ */
+async function verifyPublished(tag, assetPath) {
+  const local = { digest: await fileDigest(assetPath), bytes: (await stat(assetPath)).size }
+  const pinned = `https://github.com/tedcriss/dsh-matlab/releases/download/${tag}/${ASSET}`
+  console.log(`reading back ${pinned}…`)
+  const uploaded = await remoteDigest(pinned, pinned)
+  if (uploaded.digest !== local.digest) {
+    throw new Error(`the uploaded asset hashes to ${uploaded.digest}, the local archive to ${local.digest}`)
   }
-  throw new Error(`${TARBALL_URL} answered HTTP ${String(lastStatus)} after 6 attempts`)
+  console.log(`uploaded ${String(uploaded.bytes)} bytes (sha256 ${uploaded.digest})`)
+
+  console.log(`waiting for ${TARBALL_URL} to serve that archive…`)
+  let last = uploaded
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      last = await remoteDigest(TARBALL_URL, TARBALL_URL)
+    } catch (cause) {
+      console.log(`  attempt ${String(attempt + 1)}: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+    if (last.digest === local.digest) {
+      console.log(`floating URL serves ${String(last.bytes)} bytes (sha256 ${last.digest})`)
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 3_000))
+  }
+  throw new Error(
+    `${TARBALL_URL} still serves ${String(last.bytes)} bytes (sha256 ${last.digest}); `
+    + `the release asset itself is correct, so retry the read once GitHub's CDN catches up`,
+  )
 }
 
 async function main() {
@@ -257,8 +296,8 @@ async function main() {
   run('git', ['tag', '-a', tag, '-m', `dsh-plugin-matlab ${version}`])
   push(tag)
   publish(tag, notes, asset.path)
-  await verifyPublished()
-  console.log(`released ${tag}. The store entry can point at ${TARBALL_URL}`)
+  await verifyPublished(tag, asset.path)
+  console.log(`released ${tag}. The store entry points at ${TARBALL_URL}`)
 }
 
 await main()
