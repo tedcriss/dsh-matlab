@@ -1,8 +1,13 @@
-# 商店提交材料（已准备好，尚未提交）
+# 商店提交材料（已提交，PR #14160）
 
-本文件是 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 收录所需的全部内容，**按用户要求暂不提交**；需要提交时照下面三步做即可。
+本文件是 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 收录所需的全部内容。
 
-提交过一次（PR [#13361](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13361)，已合并）。这次是**更新自己的那一条**：改描述、补上“安装后重启 DSH”、并让商店展示本插件仓库里声明的设置页长截图。
+提交过两次：
+
+1. 首次收录：PR [#13361](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13361)，已合并；
+2. 本次更新自己的那一条：PR [#14160](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14160)（2026-11-11 提交，等待评审）——改描述、补上“安装后重启 DSH”、说明改为安装最新 Release、修正遥测默认值。
+
+条目文件与 PR 文案以本文件为准；截图由本仓库自己的 `screenshots.json`（→ `assets/settings.png`）提供。
 
 ## 1. 要提交的唯一文件
 
