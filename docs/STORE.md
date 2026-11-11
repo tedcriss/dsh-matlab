@@ -21,6 +21,11 @@
 
 路径：`data/plugins/tedcriss__dsh-matlab.yml`（覆盖已有同名文件）
 
+> **线上条目现状（2026-11-11 抓取 `awesome-dsh-plugin.com/plugins.json`）**：`tarball` 是
+> `https://github.com/tedcriss/dsh-matlab/releases/download/v1.1.9/dsh-plugin-matlab-1.1.9.tgz`
+> ——带版本号、钉在 1.1.9，所以商店永远装那一版；描述里还写着“安装后需重启 DSH”。本次提交把
+> `tarball` 换成下面的浮动地址、把描述换成“通常无需重启”，这两处必须一起改。
+
 ```yaml
 url: https://github.com/tedcriss/dsh-matlab
 name: tedcriss/dsh-matlab
@@ -68,10 +73,10 @@ Update tedcriss/dsh-matlab: install from the release archive, no restart
 
 `tedcriss/dsh-matlab` (first listed in #13361, last updated in #14160) — description only, no new entry.
 
-- The entry gains `tarball:`, so the market installs one prebuilt ~102 KB archive
-  from this repository's Release instead of a full-repository source install. The
-  asset name carries no version, so `releases/latest/download/` keeps resolving
-  across releases and the market's release-update path keeps working.
+- The entry's `tarball` becomes the version-free `releases/latest/download/dsh-plugin-matlab.tgz`
+  instead of the pinned `releases/download/v1.1.9/dsh-plugin-matlab-1.1.9.tgz`, so the
+  market installs one ~100 KB archive and keeps following new releases instead of
+  the 1.1.9 build forever.
 - "DSH must be restarted after installing" is no longer true and is gone from the
   description: the market mounts the row live, activation no longer waits for the
   server's `--version` and startup probe (they run as background diagnostics), and
@@ -90,7 +95,7 @@ Update tedcriss/dsh-matlab: install from the release archive, no restart
 - [x] `package.json` still declares `dsh.bundle` (`cordis.patch.yml` inserts the
       `matlab-agentic` row)
 - [x] `tarball` is an https `.tgz` on this repository's own GitHub Release, with a
-      version-free asset name
+      version-free asset name; the previous pinned v1.1.9 asset URL is gone
 - [x] Description matches the code (`autoProvision`, `disableTelemetry`,
       `rankRoutes`, background diagnostics)
 - [x] Screenshots declared in the plugin repository, GitHub-hosted, relative path

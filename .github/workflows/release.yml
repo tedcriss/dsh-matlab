@@ -37,6 +37,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "dsh-plugin-matlab $GITHUB_REF_NAME"
+          # A local release (`scripts/release.mjs`) uploads the asset it tested
+          # and verified; overwriting that file with this job's `npm pack` output
+          # would publish bytes nobody verified (the two packers differ in tar
+          # metadata). This job therefore fills a gap and never replaces bytes.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            if gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | grep -qx dsh-plugin-matlab.tgz; then
+              echo "the release already carries dsh-plugin-matlab.tgz; leaving it alone"
+              exit 0
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --latest \
+              --notes "dsh-plugin-matlab $GITHUB_REF_NAME"
+          fi
           gh release upload "$GITHUB_REF_NAME" dist/dsh-plugin-matlab.tgz --clobber
