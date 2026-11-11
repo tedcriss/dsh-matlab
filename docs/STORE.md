@@ -5,7 +5,9 @@
 提交过两次：
 
 1. 首次收录：PR [#13361](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13361)，已合并；
-2. 本次更新自己的那一条：PR [#14160](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14160)（2026-11-11 提交，等待评审）——改描述、补上“安装后重启 DSH”、说明改为安装最新 Release、修正遥测默认值。
+2. 本次更新自己的那一条：PR [#14160](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14160)（2026-11-11 提交，已合并）——改描述、补上“安装后重启 DSH”、说明改为安装最新 Release、修正遥测默认值。维护者在合并时补了一句“下载来的二进制不做校验和检查就会运行”，并在评审意见里要求补上摘要校验。
+
+1.1.9（2026-11-11）按该意见实现了下载校验（见 §1.1）：MCP Server 二进制在下载过程中计算 SHA-256，与 GitHub Release API 公布的资产 `digest` 比对，不一致就删除临时文件、拒绝安装并换线路；工具包补上 `content-length` 与实际字节数核对（gzip CRC 与 tar 头校验原本就有）。**评审补的那句话因此过时**，下一次更新条目时按 §1.1 的文本删掉即可。
 
 条目文件与 PR 文案以本文件为准；截图由本仓库自己的 `screenshots.json`（→ `assets/settings.png`）提供。
 
@@ -29,6 +31,25 @@ description:
 - 不加 `icon:`：商店回退到作者头像，`icon.svg` 仍是插件自己的图标。
 - 不加 `tarball:`：本包未发布 npm，源码安装即可（`dsh.bundle` 已声明）。
 - 不加 `npm:`：没有 npm 包，这一项也不允许手写。
+
+### 1.1 1.1.9 之后要提交的描述（删掉“不做校验和”那句）
+
+维护者在 [PR #14160](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14160) 合并时补的最后一句话，在 1.1.9 之后不再属实：
+
+```yaml
+description:
+  en: 'Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later, and DSH must be restarted after installing the plugin. By default (autoProvision) it downloads the MathWorks MCP Server binary and installs the newest Agentic Toolkit release on first use. MathWorks telemetry is disabled by default; set disableTelemetry to false to re-enable it.'
+  zh: '把 MathWorks 的 MATLAB Agentic Toolkit 技能与 MATLAB MCP Server 工具接入 DeepSeek Harness。需要本机 MATLAB R2021a 及以上，且安装插件后需重启 DSH。默认（autoProvision）首次使用时会下载 MathWorks MCP Server 并安装工具包的最新 Release。MathWorks 遥测默认关闭，把 disableTelemetry 设为 false 才会重新开启。'
+```
+
+被删掉的原文（中英各一句）：
+
+```text
+When the download region is China (set in the plugin or by DSH's market) or a GitHub prefix is configured, the server binary and the toolkit archive are fetched through that prefix first (gh-proxy.com and ghfast.top by default) and then directly, and the downloaded server binary is run without a checksum check.
+下载区域为 china（插件里设置或 DSH 市场已选）或配置了 GitHub 前缀时，MCP Server 二进制和工具包压缩包会先经该前缀（默认 gh-proxy.com、ghfast.top）下载，失败再直连；下载来的二进制不做校验和检查就会运行。
+```
+
+替换理由：`lib/release.js` 现在在写入临时文件的同时计算 SHA-256，与 `api.github.com/.../releases/{latest|tags/<tag>}` 返回的资产 `digest` 比对，不一致会删除临时文件并拒绝安装（`lib/integrity.js`、`test/release.test.js`）；`lib/provision.js` 也会核对响应声明的字节数。直连 API 不可达时才退回加速线路读取摘要，并在日志里注明摘要来自镜像；连摘要都取不到时日志明确写“本次未校验”。
 
 ## 2. 截图：声明在**本仓库**里
 

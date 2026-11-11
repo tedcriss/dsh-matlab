@@ -38,7 +38,7 @@ MathWorks 侧       │                                                         
 | 依赖 | 说明 |
 | --- | --- |
 | MATLAB R2021a 或更新 | 需已在系统上安装；插件按 环境变量 → `PATH` → 注册表 → 安装目录 自动找 |
-| MATLAB MCP Server | v0.16.0 起验证；二进制与工具包都由插件装在 `$DSH_HOME/matlab`，缺失时自动下载 |
+| MATLAB MCP Server | v0.16.0 起验证；二进制与工具包都由插件装在 `$DSH_HOME/matlab`，缺失时自动下载；下载的二进制按 GitHub 公布的 `sha256` 校验，不一致拒绝安装 |
 | MATLAB Agentic Toolkit | 由插件把最新 Release 的源码包解压到 `$DSH_HOME/matlab/toolkits`（不读取 `~/.matlab/agentic-toolkits`，不 clone 仓库） |
 | DSH | 需要 profile 中已组合 `@deepseek-ai/dsh-mcp-client` 与 `@deepseek-ai/dsh-skill-filesystem`（base bundle 自带） |
 
@@ -134,6 +134,8 @@ pnpm add file:/path/to/dsh-matlab
 
 设置保存后**立即生效**：页面通过 DSH 的 `settings` 服务写入 profile 补丁，DSH 把 volatile 变更提交给运行中的插件，插件收到 `loader/volatile-update` 后重新挂载受影响的部分（技能目录、MCP 桥）。直接在 `cordis.patch.yml` 里改这些字段效果相同。
 
+页面读取的是**已保存的配置**，不是“上一次挂载时的快照”。DSH 提交 volatile 字段后，重新挂载在 120 ms 后才发生；如果保存后立刻重读旧快照，控件会弹回修改前的值（例如关掉的技能组又被勾上），而下次进入页面才显示真实配置。1.1.9 起状态路由直接读 DSH 就地更新的配置引用，所以**保存返回时控件就显示真实配置**，全部字段（技能组、开关、下拉框、文本框）一起生效。
+
 页面只是同一份配置的另一种写法：schema 仍是校验者，非 `volatile` 字段不能在页面保存（返回 400），revision 冲突（另一个窗口先改过）返回 409，页面随后重新载入。
 
 ### 为什么没有“安装完成时”就下载
@@ -147,7 +149,7 @@ DSH 在插件第一次被加载之前不会运行它的任何代码，所以“�
 三个按钮：
 
 1. **检查更新**（只读两次很小的探测，不下载）：两者都看 GitHub 的 `releases/latest`；某条线路拒绝或限流 API 时，退到发布页本身（页面 `og:url` 里的 tag 就是 `releases/latest` 指向的那个）。两条探测都走最先可用的加速线路。
-2. **下载最新依赖**：只有在“**本地缺失**（任一产物没装）”或“**检查后发现官方 Tag 与本地不同**”时才可点击。点击后先停掉正在运行的 MCP 桥与技能目录（Windows 不允许替换正在运行的 exe，技能监视器也不该看着目录被重写），**清空**插件自己的那两份产物，再重新下载并挂载最新 Release；进度对话框照常显示。工具包先解压到 `*.incoming`，完整解压成功才就位，二进制是“临时文件 + 原子改名”。
+2. **下载最新依赖**：只有在“**本地缺失**（任一产物没装）”或“**检查后发现官方 Tag 与本地不同**”时才可点击。点击后先停掉正在运行的 MCP 桥与技能目录（Windows 不允许替换正在运行的 exe，技能监视器也不该看着目录被重写），**清空**插件自己的那两份产物，再重新下载并挂载最新 Release；进度对话框照常显示。工具包先解压到 `*.incoming`，完整解压成功才就位，二进制是“临时文件 + 原子改名”，且**下载过程中边写边算 SHA-256，与 GitHub 公布的 Release 资产摘要不一致就拒绝安装**（见下文“下载的文件经过校验”）。
 3. **清空本地依赖**：删除插件自己安装的 MCP Server 与 Agentic Toolkit（`$DSH_HOME/matlab` 下的副本），**点击后弹出二次确认**，确认才真正删除。删除只动插件自己的文件：你的 MATLAB 安装、`mcpServerPath`、`toolkitRoots` 指向的目录都不会被碰。删除后 MATLAB 工具与技能不可用，需要重新下载。
 
 工具包的版本就是它自己的 Release Tag（`MATK-2026.11.a`），记录在安装目录里的 `.dsh-matlab-release.json`，所以“有更新”是 Tag 不相等，而不是“远端 HEAD 变了”。用 `toolkitRoots` 指向的工具包不会被比较、也不会被替换或删除：那是用户的目录，不是插件的安装。MCP Server 是 semver 比较（`v0.16.0 < v0.17.0`），不会因为镜像晚同步而“降级”。
@@ -186,14 +188,15 @@ matlab-agentic: the MATLAB MCP Server binary is missing; downloading it in the b
 ```text
 matlab-agentic: downloading https://gh-proxy.com/https://github.com/matlab/matlab-agentic-toolkit/archive/refs/tags/MATK-2026.11.a.tar.gz
 matlab-agentic: extracting 1433 file(s) from matlab/matlab-agentic-toolkit MATK-2026.11.a
-matlab-agentic: downloading https://gh-proxy.com/https://github.com/matlab/matlab-mcp-server/releases/latest/download/matlab-mcp-server-windows-x64.exe
-matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 bytes via gh-proxy.com)
+matlab-agentic: downloading https://gh-proxy.com/https://github.com/matlab/matlab-mcp-server/releases/download/v0.16.0/matlab-mcp-server-windows-x64.exe
+matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 bytes via gh-proxy.com; sha256 7c70fdc6…d1883ea)
 ```
 
 ```json
 "github": { "region": "china", "regionSource": "market", "proxy": null, "proxySource": "none",
             "routes": ["gh-proxy.com", "ghfast.top", "direct"] },
-"server": { "path": "…\\matlab-mcp-server.exe", "source": "download", "downloaded": true, "route": "gh-proxy.com" }
+"server": { "path": "…\\matlab-mcp-server.exe", "source": "download", "downloaded": true,
+            "route": "gh-proxy.com", "tag": "v0.16.0", "verified": true }
 ```
 
 显式指定线路（profile 的 `cordis.patch.yml`）：
@@ -208,7 +211,18 @@ matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 by
 
 预算是硬边界：单次首次准备默认 300 秒，每条线路另有“无数据 30 秒即放弃”的看门狗；解压本身就发生在同一次预算里。一条坏线路最多浪费几十秒，不会把启动拖成“打不开”。
 
-前缀只接受 `https://`、不含凭据与查询串——下载的是随后要执行的程序，明文或可改写的线路等于允许中间人替换它。环境变量里的值不合法时只在日志告警并忽略（那是运维的设置，不是本插件的配置）；`githubProxy` 配置不合法会直接激活失败，并给出可用的写法。
+前缀只接受 `https://`、不含凭据与查询串——下载的是随后要执行的程序，明文或可改写的线路等于允许中间人替换它。环境变量里的值不合法时只在日志告警并忽略（那是运维的设置，不是本插件的配置）；`githubProxy` 配置不合法会直接激活失败，并给出可用的写法。前缀只影响“从哪里搬字节”，不决定“字节是否可信”：可信性由下一节的摘要校验兜底。
+
+### 下载的文件经过校验
+
+下载来的二进制会被执行，所以它不能只靠“看起来像程序”：
+
+- **Release 资产摘要**：GitHub 的 Release API 为每个资产公布 `sha256:<hex>`。插件在下载前读取摘要，下载过程中边写临时文件边算 SHA-256，**不一致就删掉临时文件、拒绝安装**，并换下一条线路；全部线路都对不上才报错。摘要优先**直连 `api.github.com`** 读取（不经加速前缀）——镜像可以送包体，但不该同时是“证明包体没被换过”的唯一来源；直连 API 不可达时才退回加速线路读取，并在日志里注明摘要来自镜像（仍能发现截断与损坏，但弱于直连）。
+- **完整性**：Release 公布的字节数与实际收到的字节数不一致（截断）同样拒绝；没有摘要可查时，响应声明的 `content-length` 也会核对。
+- **工具包压缩包**：GitHub 对按 tag 动态生成的源码包不提供 `digest`，所以校验的是“这份包完整且结构正确”：`content-length` 与实际字节数一致、gzip CRC、tar 头校验和、拒绝绝对路径 / `..` / 越界符号链接；解压只写空的 `*.incoming`，完整成功后才替换旧目录。
+- **摘要不可得时**：如果连 API 都读不到（例如网络只放行下载、封了 API），安装仍会继续，并在日志里写明“本次未校验”；不会因为校验服务不可达而让用户失去 MATLAB 工具。
+
+实测（v0.16.0，经 `gh-proxy.com`，2026-11-11）：`19905376 bytes ... sha256 7c70fdc6…d1883ea`，与 GitHub Release API 公布的值一致；改掉其中任意一个字节后安装被拒绝。
 
 ## MATLAB 里显示的 Agent 名
 
@@ -395,6 +409,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | Windows 下 MATLAB 起不来且无日志 | MATLAB 需要 `WINDIR`；插件已显式透传，若仍失败请检查启动器环境 |
 | 首次启动卡在下载、最后进了恢复助手 | 直连 GitHub 在国内约 7 KB/s；先看日志里 `github: …` 一行用了哪条线路。把 DSH 市场的下载区域设为“中国区”，或设 `githubProxy` / `DSHM_GITHUB_PROXY`（见“首次下载”一节） |
 | 下载失败（企业代理） | DSH 启动器会把 `HTTPS_PROXY` 应用到 `fetch`；纯 Node 环境下需 `NODE_USE_ENV_PROXY=1`。也可手动下载二进制后设 `mcpServerPath` |
+| 日志出现 `checksum mismatch` 或 `incomplete download` | 加速线路返回的字节与 GitHub 公布的 `sha256` / 字节数不一致（镜像缓存截断，或被替换）。插件已删掉临时文件、拒绝安装，并尝试下一条线路；换一条前缀重试，持续出现说明该镜像不可信。直连 `api.github.com` 读不到摘要时日志会写明“本次未校验” |
 | 设置页保存报 `not volatile` / 400 | 只有 `.volatile()` 字段能从页面保存；其余字段请写进 `cordis.patch.yml` 后重启 |
 | 设置页保存 / 检查更新 / 安装依赖报 `HTTP 405` | 宿主进程还在运行升级前的 Host 代码（插件只在激活时载入）。重启 DSH 或重新加载插件即可；1.0.1 起写操作改走 carrier 的 `handler`，不再被框架的 GET/HEAD 规则拦下 |
 | 设置页保存报 409 | 另一个窗口先改过同一份配置：页面会自动重新载入，确认后重试 |
@@ -406,7 +421,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 146 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 170 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；
@@ -420,6 +435,7 @@ node --test          # 146 个用例；插件本身无构建步骤、无运行�
   - `client/client.js` — 设置页（`settings.section`）与进度对话框（`shell.overlay`）
   - `lib/toolkit.js` + `lib/yaml-mini.js` — 读 MathWorks `manifest.yaml`（技能组、`mcp-server-extensions`）
   - `lib/matlab-root.js` / `lib/mcp-binary.js` / `lib/release.js` — 发现与获取
+  - `lib/integrity.js` — 下载校验：Release 资产的 SHA-256、声明字节数与响应长度
   - `lib/github.js` — 沿用 DSH 的 GitHub 加速（区域、前缀、回退链，以及 profile 市场状态的读取）
   - `lib/args.js` — 把设置翻译成 MATLAB MCP Server 官方参数（含 `existing` 模式的互斥规则）
   - `lib/probe.js` — 一次性 stdio MCP 握手

@@ -36,10 +36,12 @@ MATLAB R2021a 或更新。MCP Server 二进制与 Agentic Toolkit（最新 Relea
 
 在 github.com 很慢的网络上，首次启动不会直连下载：二进制与工具包发布包都依次尝试 `gh-proxy.com`、`ghfast.top`、直连，每条线路都有超时预算，镜像失效只浪费几十秒而不是整段启动。
 
+下载来的二进制随后会被执行，因此安装不再把镜像当作可信来源：先读取 GitHub Release API 公布的资产 `sha256` 摘要（优先直连 `api.github.com`，镜像不能同时是“包体”和“摘要”的唯一来源），下载中边写临时文件边算哈希，不一致就删文件、拒绝安装；Release 公布的字节数与响应 `content-length` 也会核对。工具包源码包没有可核对的上游摘要，校验的是传输完整与 gzip/tar 结构正确，完整成功后才替换技能目录。
+
 ## 诊断
 
 `GET /plugin/matlab/status` 会给出：插件自身的名字与版本（读自 `package.json`）、解析到的 MATLAB 根目录、二进制路径与版本、工具包来自哪个 Release Tag（`toolkitRelease.tag`）、探测结果（工具与资源名）、已加载技能组及技能数、当前生效的 GitHub 加速（`github.region` / `github.routes` / `server.route`），以及激活期间的告警。
 
-设置页另用五个同源 JSON 路由：`GET /plugin/matlab/{state,progress}` 读取，`POST /plugin/matlab/{config,provision,update}` 写入。写路由在 DSH 的 web carrier 上必须注册为 `handler`（`resource` 只接受 GET/HEAD，其它方法会被框架直接回 405）。
+设置页另用六个同源 JSON 路由：`GET /plugin/matlab/{state,progress}` 读取，`POST /plugin/matlab/{config,provision,update,dependencies}` 写入。写路由在 DSH 的 web carrier 上必须注册为 `handler`（`resource` 只接受 GET/HEAD，其它方法会被框架直接回 405）。写路由要等 DSH 真正提交后才回答，`state` 又按已提交的配置投影，而不是上次挂载的快照，所以保存后立刻重载页面读到的就是已存的值。
 
 完整字段见 [README](../README.md)，取舍理由见 [DESIGN](../DESIGN.md)。

@@ -8,8 +8,12 @@ import {
   latestRelease,
   latestServerRelease,
   parseVersion,
+  releaseAssets,
   releaseTagFromText,
 } from '../lib/updates.js'
+
+/** The published digest of the ASCII string `abc`. */
+const ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
 
 /** A release page shaped like GitHub's: the tag lives in `og:url`. */
 function releasePage(tag) {
@@ -115,5 +119,69 @@ test('fails a route that answers with a page naming no tag', async () => {
       fetchImpl: async () => new Response('<html>no release here</html>', { status: 200 }),
     }),
     /the release page names no tag/u,
+  )
+})
+
+test('reads an asset digest from the release API over the direct route first', async () => {
+  const requested = []
+  const release = await releaseAssets({
+    slug: 'matlab/matlab-mcp-server',
+    routes: ['https://gh-proxy.com'],
+    fetchImpl: async url => {
+      requested.push(String(url))
+      return new Response(JSON.stringify({
+        tag_name: 'v0.16.0',
+        assets: [{ name: 'matlab-mcp-server-windows-x64.exe', size: 19_905_376, digest: `sha256:${ABC}` }],
+      }), { status: 200 })
+    },
+  })
+  assert.equal(release.tag, 'v0.16.0')
+  assert.equal(release.route, null)
+  assert.equal(release.assets.get('matlab-mcp-server-windows-x64.exe').digest, ABC)
+  assert.equal(release.assets.get('matlab-mcp-server-windows-x64.exe').size, 19_905_376)
+  assert.match(requested[0], /^https:\/\/api\.github\.com\/repos\/matlab\/matlab-mcp-server\/releases\/latest$/u)
+})
+
+test('falls back to an acceleration route when the direct API is blocked', async () => {
+  const requested = []
+  const messages = []
+  const release = await releaseAssets({
+    slug: 'matlab/matlab-mcp-server',
+    routes: ['https://gh-proxy.com'],
+    fetchImpl: async url => {
+      requested.push(String(url))
+      if (!String(url).startsWith('https://gh-proxy.com/')) throw new Error('connect ECONNREFUSED')
+      return new Response(JSON.stringify({ tag_name: 'v0.16.0', assets: [] }), { status: 200 })
+    },
+    log: entry => messages.push(entry.message),
+  })
+  assert.equal(release.route, 'https://gh-proxy.com')
+  assert.equal(release.assets.size, 0)
+  assert.ok(messages.some(message => /came through gh-proxy\.com/u.test(message)))
+})
+
+test('requests a pinned tag when one is supplied', async () => {
+  const requested = []
+  await releaseAssets({
+    slug: 'matlab/matlab-agentic-toolkit',
+    tag: 'MATK-2026.11.a',
+    fetchImpl: async url => {
+      requested.push(String(url))
+      return new Response(JSON.stringify({ tag_name: 'MATK-2026.11.a', assets: [] }), { status: 200 })
+    },
+  })
+  assert.match(requested[0], /releases\/tags\/MATK-2026\.11\.a$/u)
+})
+
+test('reports every route when no release metadata can be read', async () => {
+  await assert.rejects(
+    () => releaseAssets({
+      slug: 'matlab/matlab-mcp-server',
+      routes: ['https://gh-proxy.com'],
+      fetchImpl: async () => {
+        throw new Error('connect ECONNREFUSED')
+      },
+    }),
+    /could not read matlab\/matlab-mcp-server release metadata: direct: connect ECONNREFUSED; gh-proxy\.com: connect ECONNREFUSED/u,
   )
 })

@@ -36,10 +36,12 @@ A first start downloads the binary and installs the toolkit release in the backg
 
 On a network where github.com is slow, the first start reuses the acceleration DSH already configured instead of downloading direct: the binary and the toolkit release archive both try `gh-proxy.com`, then `ghfast.top`, then the origin. Every route is bounded, so a dead mirror costs seconds rather than the whole start.
 
+Because the downloaded binary is executed, the install no longer trusts a mirror with it: the published release asset's `sha256` digest is read from `api.github.com` (direct first, so the mirror cannot also be the only source of the hash), the body is hashed while it streams to a temporary file, and a mismatch deletes the file and refuses the install. The release's byte count and the response's `content-length` are checked too. The toolkit archive has no upstream digest to compare, so it is checked for a complete transfer and a valid gzip/tar structure before it replaces the catalog.
+
 ## Diagnosis
 
 `GET /plugin/matlab/status` reports the plugin's own name and version (read from `package.json`), the resolved MATLAB root, the binary and its version, which release the local toolkit came from (`toolkitRelease.tag`), the probe result (tool and resource names), the loaded skill groups with skill counts, the GitHub acceleration in force (`github.region` / `github.routes` / `server.route`), and the warnings raised during activation.
 
-The Settings page uses five same-origin JSON routes: `GET /plugin/matlab/{state,progress}` to read and `POST /plugin/matlab/{config,provision,update}` to write. Mutations must register as a carrier `handler`: a `resource` answers only `GET`/`HEAD`, and the carrier rejects every other method with its own 405.
+The Settings page uses six same-origin JSON routes: `GET /plugin/matlab/{state,progress}` to read and `POST /plugin/matlab/{config,provision,update,dependencies}` to write. Mutations must register as a carrier `handler`: a `resource` answers only `GET`/`HEAD`, and the carrier rejects every other method with its own 405. A mutation answers only after DSH has committed it, and `state` is projected from that committed config rather than the last-applied snapshot, so a page that reloads immediately after saving already sees the stored values.
 
 Full reference: [README](../README.md). Design rationale: [DESIGN](../DESIGN.md).

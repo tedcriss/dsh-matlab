@@ -140,6 +140,38 @@ test('reports the live state the Settings page renders', () => {
   assert.equal(view.revision, null)
 })
 
+test('reports a saved field before the remount catches up', () => {
+  // DSH commits volatile fields in place; `state.options` is only the last
+  // applied snapshot, which remount refreshes a moment later. The page reloads
+  // immediately after saving, so it must read the stored values, not the stale
+  // snapshot — otherwise every control snaps back to its previous value.
+  const state = fakeState({
+    config: {
+      skillGroups: { get: () => ['radar'] },
+      sessionMode: { get: () => 'nodesktop' },
+      matlabRoot: { get: () => 'C:\\MATLAB\\R2026a' },
+    },
+  })
+  state.ctx = fakeContext().ctx
+  const view = stateView(state)
+  assert.deepEqual(view.config.skillGroups, ['radar'])
+  assert.equal(view.config.sessionMode, 'nodesktop')
+  assert.equal(view.config.matlabRoot, 'C:\\MATLAB\\R2026a')
+  // `state.options` still describes the previous activation.
+  assert.deepEqual(state.options.skillGroups, [])
+  assert.equal(state.options.sessionMode, 'auto')
+})
+
+test('keeps the applied snapshot when the stored config cannot be resolved', () => {
+  const state = fakeState({ config: { githubProxy: 'http://plain.example' } })
+  state.ctx = fakeContext().ctx
+  const view = stateView(state)
+  // The remount reports the bad value as an activation error; the page keeps
+  // rendering the configuration that is actually running.
+  assert.equal(view.config.githubProxy, '')
+  assert.equal(view.config.sessionMode, 'auto')
+})
+
 test('reads the schema revision DSH holds for this plugin', () => {
   const settings = {
     describe: () => [

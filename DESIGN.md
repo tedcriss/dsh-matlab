@@ -199,6 +199,8 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 **改完立刻生效，靠的是 Cordis 的 volatile 语义。** volatile 变更不重启插件，只把新值提交进运行中的引用并发 `loader/volatile-update`。插件监听该事件（120 ms 合并一次），dispose 掉两个子插件（技能目录、MCP 桥）再按新值重挂：技能组变 → 只换 `customSkillDirs`；MATLAB 参数、命名空间、超时变 → 重建 MCP 桥。重挂时还会重新解析 MATLAB 根与 GitHub 加速线路：前者决定新桥启动哪个 MATLAB，后者决定下一次下载走哪条线路；若沿用激活时的旧值，页面改了 `matlabRoot` / `githubProxy` 也要等重启才生效。不联网、不重启，日志一行 `settings applied`。若后台正在取依赖，重挂排队到取完（`remountRequested`）。
 
+**保存后读回的是“存下来的配置”，不是“上次挂载的快照”。** volatile 值由 Loader 就地更新引用，但插件自己缓存的 `state.options` 要等 120 ms 后的重挂才刷新。页面保存后立即重读状态，如果读的是那份快照，控件会弹回保存前的值——关掉的技能组又被勾上，而下次进入页面才显示真实配置（1.1.9 修的正是这个时序）。状态路由因此每次用 `resolveOptions(state.config)` 现场投影已保存的值；`state.options` 只描述“正在运行的绑定”，不再回答“用户存了什么”。
+
 **进度对话框只是一个槽位。** `shell.overlay` 是框架级浮动层（本身可点击穿透，占用者自己决定 pointer-events），正好放右下角提示；`settings.section` 是“设置里一页”的席位。两个注册都不替换宿主 UI：`id` 用自己的，`order` 只决定排序。组件是手写 React（`client/client.js`），只用 `--dsw-alias-*` 主题变量、不 import 任何客户端基础库——DSH 自己的插件文档说得很直白：基础库 API 会变，一个抛错组件会把整个槽位条目打空。
 
 **“安装完成钩子”在这套框架里不存在。** 插件只有在第一次被 Loader 加载之后才有代码在跑；`pnpm add` 阶段没有任何监听者能接“装好了”。所以“装完就下”落到“首次激活就开始下”：激活只做本地发现（毫秒级），缺的那一半交给后台并立刻开始报进度，界面弹出对话框，宿主 60 秒上限不受影响。`provisionWaitMs` 留给愿意等的 profile。
@@ -291,7 +293,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 ## 7. 安全
 
 - 子进程只用 argv 传递参数，不拼接 shell 字符串；`shell: false`；
-- 下载只从 MathWorks 的 GitHub（Release 资产或该 tag 的源码包），经可选的反代前缀（仅 `https://`、无凭据/查询串）。二进制校验体积下限与文件头（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），先写临时文件再原子改名并置可执行位；工具包校验 gzip 魔数与 tar 头校验和，**拒绝任何绝对路径、`..` 段或指向目标目录之外的符号链接**，只解压到一个空的暂存目录，完整成功后才替换旧目录——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当程序或技能装上；
+- 下载只从 MathWorks 的 GitHub（Release 资产或该 tag 的源码包），经可选的反代前缀（仅 `https://`、无凭据/查询串）。**二进制按 GitHub Release API 为每个资产公布的 `sha256` 摘要校验**：摘要优先直连 `api.github.com` 读取（镜像不能同时充当包体与摘要的唯一来源），下载中边写临时文件边算哈希，不一致即删临时文件、拒绝安装并换线路；直连 API 不可达时退回加速线路读取摘要（弱于直连，但仍能发现截断与损坏），联网条件连摘要都取不到时才在日志注明“本次未校验”并继续。字节数与 Release 公布值（或响应 `content-length`）不一致同样视为截断并拒绝；先写临时文件再原子改名并置可执行位，同时保留体积下限与文件头检查（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），防止镜像的 HTML 错误页被当成程序。工具包没有可核对的上游 `digest`（GitHub 按 tag 动态生成源码包），因此校验“完整且结构正确”：`content-length`、gzip CRC、tar 头校验和，**拒绝任何绝对路径、`..` 段或指向目标目录之外的符号链接**，只解压到一个空的暂存目录，完整成功后才替换旧目录——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当程序或技能装上；
 - 解压后不执行任何来自工具包的内容：技能是 `SKILL.md` 文本，`tools/tools.json` 只是 MCP 工具定义；插件本身只运行 MathWorks 的 `matlab-mcp-server` 二进制；
 - 不读取、不写入 MATLAB 许可证或凭据；`dsh-mcp-client` 默认会清理名字含 `KEY/PASSWORD/SECRET/TOKEN` 的环境变量，插件只补充 `WINDIR`（Windows 上 MATLAB 必需）；
 - 状态路由只读、无副作用，且仅在 profile 里有 `ctx.webServer` 时注册；写路由使用 carrier 的 `handler`，校验同源与 `application/json`，body 上限 256 KiB；
@@ -310,7 +312,8 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
 7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
 8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，`MATK-2026.11.a` 源码包（3.36 MB / 1433 个文件）2.4 秒装完并挂上 24 组 / 158 个技能，真实 MCP 握手 5 工具 / 2 资源，随后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
-9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision/update/dependencies` 六条路由、写路由必须是 `handler`（并用本地 HTTP server 复刻 carrier 的 GET/HEAD 规则做真 POST）、非 volatile 拒绝、503 与 409 冲突、405/415/403、必需技能组无法被排除、遥测默认值；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂（含 MATLAB 根与加速线路重解析）、下载进度的百分比、清空依赖（只删插件自己的产物并清空状态）与“先清后下”的下载顺序。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
+9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision/update/dependencies` 六条路由、写路由必须是 `handler`（并用本地 HTTP server 复刻 carrier 的 GET/HEAD 规则做真 POST）、非 volatile 拒绝、503 与 409 冲突、405/415/403、必需技能组无法被排除、遥测默认值，以及**保存后立即读回已保存值**（`state.config` 与滞后 120 ms 的 `state.options` 不一致时以已保存值为准）；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂（含 MATLAB 根与加速线路重解析）、下载进度的百分比、清空依赖（只删插件自己的产物并清空状态）与“先清后下”的下载顺序。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
+10. **下载校验**（本机实测，2026-11-11）：经 `gh-proxy.com` 下载 v0.16.0 二进制 19,905,376 字节，摘要 `7c70fdc6…d1883ea` 与 GitHub Release API 公布值一致（`verified: true`），下载 URL 被钉在 `releases/download/v0.16.0/…` 而不是跟随 `latest`；单元测试覆盖摘要不符、Release 公布字节数不足、响应 `content-length` 不足、无法读取元数据时降级为“未校验”、以及镜像代为转述摘要五条路径。工具包源码包（3,359,163 字节 / 1433 文件）经同一前缀安装成功，`content-length` 缺失时结构与 CRC 校验仍通过。
 
 ## 9. 已知限制与后续方向
 
