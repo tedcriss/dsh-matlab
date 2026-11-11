@@ -10,7 +10,9 @@
 
 > **前置与默认行为**（与 DSH 商店条目一致）：需要本机 MATLAB **R2021a 或更新**；默认 `autoProvision: true`，首次使用时下载 MathWorks MCP Server 并安装 Agentic Toolkit 的最新 Release（不 clone 仓库，也不需要本机有 `git`）；MathWorks 遥测默认关闭（只有把 `disableTelemetry` 设为 `false` 才开启）。
 
-> 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。
+> 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。商店提交材料（条目 YAML、PR 文案）见 [docs/STORE.md](docs/STORE.md)。
+
+![设置 → MATLAB 整页长截图：连接状态、24 个技能组开关、启动参数、MCP Server、依赖下载，以及带本地/最新 Release Tag 的“更新依赖”三列表](assets/settings.png)
 
 ---
 
@@ -49,6 +51,8 @@ shareMATLABSession()   % 让 DSH 接管你正在用的 MATLAB 会话
 ```
 
 ## 安装
+
+> **装完请重启 DSH。** 插件代码只在 DSH Host 启动时载入，`pnpm add` 只把包装进 profile；不重启的话，设置页里的 MATLAB 一页、进度对话框和 `mcp__matlab__*` 工具都要等到下一次启动才出现。重启之后首次激活会在后台准备依赖（见“首次下载”）。
 
 本包目前**未发布到 npm**，因此按本地 checkout 安装。DSH Desktop 与 `dsh` 都支持从本地路径安装插件。
 
