@@ -58,8 +58,8 @@ async function fixture(t) {
     ensureMcpServer: async () => ({ path: binary, source: 'config', downloaded: false }),
     serverVersion: async () => 'v9.9.9',
     probeMcpServer: async () => ({ ok: true, tools: [], resources: [] }),
-    cloneToolkit: async () => {
-      throw new Error('cloneToolkit must not run')
+    installToolkit: async () => {
+      throw new Error('installToolkit must not run')
     },
     countSkills: async () => 1,
     loadSkillProvider: async () => ({ apply: () => {}, name: 'fake-skill-filesystem' }),
@@ -128,10 +128,11 @@ test('re-exports the seams documented for integrators', () => {
     'countSkills',
     'discoverMatlabRoot',
     'discoverToolkits',
+    'extractTarGz',
+    'installToolkit',
     'isNewer',
+    'latestRelease',
     'latestServerRelease',
-    'latestToolkitHead',
-    'localToolkitHead',
     'looksLikeExecutable',
     'parseVersion',
     'normalizeGithubProxy',
@@ -139,6 +140,9 @@ test('re-exports the seams documented for integrators', () => {
     'parseSkillGroups',
     'probeMcpServer',
     'readToolkit',
+    'readToolkitRelease',
+    'releaseArchiveUrl',
+    'releaseTagFromText',
     'releaseRank',
     'resolveDshHome',
     'resolveGithubAcceleration',
@@ -147,6 +151,8 @@ test('re-exports the seams documented for integrators', () => {
     'selectSkillGroups',
     'serverEnvironment',
     'throughProxy',
+    'toolkitDirectory',
+    'updateToolkit',
   ]) {
     assert.equal(typeof plugin[name], 'function', `missing export ${name}`)
   }

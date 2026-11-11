@@ -8,7 +8,7 @@
 
 插件本身**不实现任何 MATLAB 能力**。它只做三件连接性的事：**找到** MathWorks 的二进制与技能目录，**校验**它能跑通（一次 MCP 握手），**挂载** DSH 自带的两个传输层（MCP 桥、技能目录提供方）。工具与技能内容全部是 MathWorks 原件，不复制、不改写、不重新打包。
 
-> **前置与默认行为**（与 DSH 商店条目一致）：需要本机 MATLAB **R2021a 或更新**；默认 `autoProvision: true`，首次使用时下载 MathWorks MCP Server 并克隆工具包；MathWorks 遥测默认关闭（只有把 `disableTelemetry` 设为 `false` 才开启）。
+> **前置与默认行为**（与 DSH 商店条目一致）：需要本机 MATLAB **R2021a 或更新**；默认 `autoProvision: true`，首次使用时下载 MathWorks MCP Server 并安装 Agentic Toolkit 的最新 Release（不 clone 仓库，也不需要本机有 `git`）；MathWorks 遥测默认关闭（只有把 `disableTelemetry` 设为 `false` 才开启）。
 
 > 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。
 
@@ -37,7 +37,7 @@ MathWorks 侧       │                                                         
 | --- | --- |
 | MATLAB R2021a 或更新 | 需已在系统上安装；插件按 环境变量 → `PATH` → 注册表 → 安装目录 自动找 |
 | MATLAB MCP Server | v0.16.0 起验证；二进制与工具包都由插件装在 `$DSH_HOME/matlab`，缺失时自动下载 |
-| MATLAB Agentic Toolkit | 由插件克隆到 `$DSH_HOME/matlab/toolkits`（不读取 `~/.matlab/agentic-toolkits`） |
+| MATLAB Agentic Toolkit | 由插件把最新 Release 的源码包解压到 `$DSH_HOME/matlab/toolkits`（不读取 `~/.matlab/agentic-toolkits`，不 clone 仓库） |
 | DSH | 需要 profile 中已组合 `@deepseek-ai/dsh-mcp-client` 与 `@deepseek-ai/dsh-skill-filesystem`（base bundle 自带） |
 
 依赖只属于插件自己：`$DSH_HOME/matlab` 是唯一的存放位置。机器上 `~/.matlab/agentic-toolkits` 里的副本（MathWorks 安装器装的）**不会被读取或复用**，所以同一个 MATLAB 不会在 DSH 里出现两份版本不一致的二进制或技能。
@@ -107,13 +107,13 @@ pnpm add file:/path/to/dsh-matlab
 | `initializeMatlabOnStartup` | `false` | 为 `true` 时 MCP 服务一启动就拉起 MATLAB |
 | `disableTelemetry` | `true` | 透传 `--disable-telemetry=true`；默认关闭遥测 |
 | `mcpServerPath` | 自动 | 指定 `matlab-mcp-server` 可执行文件；留空则发现或下载 |
-| `autoProvision` | `true` | 缺失时下载二进制、克隆 MATLAB 工具包 checkout |
+| `autoProvision` | `true` | 缺失时下载二进制、安装 MATLAB 工具包的最新 Release |
 | `githubProxy` | 空（沿用 DSH） | GitHub 加速前缀，例如 `https://gh-proxy.com`；留空则沿用 DSH 已配置的加速（`DSHM_GITHUB_PROXY`，或 DSH 市场“GitHub 加速”里的自定义前缀） |
 | `downloadRegion` | `auto` | `auto` 跟随 DSH 市场选定的区域；`china` 强制中国区线路；`global` 直连。见下文“首次下载” |
-| `provisionTimeoutMs` | `300000` | 单次首次准备（下载二进制或克隆工具包）的总预算；它只约束后台任务，不占用启动 |
+| `provisionTimeoutMs` | `300000` | 单次首次准备（下载二进制或安装工具包）的总预算；它只约束后台任务，不占用启动 |
 | `provisionWaitMs` | `0` | 激活最多等首次准备多久（毫秒）。`0` 表示完全不阻塞启动，准备完成后自动挂载 |
 | `agentName` | `DeepSeek` | MATLAB 命令窗口里显示的 Agent 名（单行、≤ 80 字符） |
-| `toolkitRoots` | `[]` | 额外/替代的工具包 checkout；给定时优先（平时不需要，插件用自己的副本） |
+| `toolkitRoots` | `[]` | 额外/替代的工具包目录；给定时优先。指向你自己的副本时，插件不会把它当成可更新/可替换的安装 |
 | `skillGroups` | `[]`（全部） | 要加载的技能组；留空或 `['*']` 加载全部组（MATLAB 工具包为 24 组 / 158 个技能），列出组名则只加载这些组 |
 | `extensionFiles` | `[]` | 额外 MCP 工具定义文件（Simulink 工具包的 `tools/tools.json` 会自动带上） |
 | `watchSkills` | `true` | 工具包变更时热更新技能目录 |
@@ -125,7 +125,7 @@ pnpm add file:/path/to/dsh-matlab
 插件自带 Web 界面（纯 ESM 客户端模块，无构建步骤）：
 
 - **设置 → MATLAB**（侧栏设置面板里的一页）：连接状态（阶段、MATLAB 根、MCP Server 与版本、实际线路、探测到的工具数）；**技能组开关**（可上下滚动的两列列表：组名 + 技能数；默认全选，全部勾选时保存为“全部”，将来新增的组自动纳入；标“必需”的组锁定为已选，不能关闭）；MATLAB 启动参数（根目录、桌面、会话模式、起始目录、启动即拉起、遥测默认关闭）；MCP Server（可执行文件路径、命名空间、调用超时）；依赖下载（加速前缀、区域、预算、启动等待、监视工具包）；更新依赖（检查更新 / 更新依赖）；维护（一键检查并安装缺失依赖）。
-- **右下角进度对话框**：首次准备、或缺口被补齐时出现，显示“克隆工具包 / 下载二进制”、字节进度（镜像声明长度时是确定进度，否则流动条）、当前线路；可以关掉（后台继续），失败可重试。它只是提示，不挡住应用。
+- **右下角进度对话框**：首次准备、或缺口被补齐时出现，显示“正在下载工具包发布包 / 正在下载二进制”、字节进度（镜像声明长度时是确定进度，否则流动条）、当前线路；可以关掉（后台继续），失败可重试。它只是提示，不挡住应用。
 
 设置保存后**立即生效**：页面通过 DSH 的 `settings` 服务写入 profile 补丁，DSH 把 volatile 变更提交给运行中的插件，插件收到 `loader/volatile-update` 后重新挂载受影响的部分（技能目录、MCP 桥）。直接在 `cordis.patch.yml` 里改这些字段效果相同。
 
@@ -137,16 +137,16 @@ DSH 在插件第一次被加载之前不会运行它的任何代码，所以“�
 
 ### 更新依赖
 
-机器上的依赖不会自己变新，所以设置页里有一张“更新依赖”卡片。还没检查时，卡片按实时状态显示“当前 …”或“已安装”，只有确实缺失时才写“未安装”；检查之后才补上“最新 …”。
+机器上的依赖不会自己变新，所以设置页里有一张“更新依赖”卡片。它是一张三列表：**模块 / 本地 Tag / 最新 Tag**。本地列给出当前装着的 Release Tag（MCP Server 是 `v0.16.0` 这样的版本号，工具包是 `MATK-2026.11.a` 这样的发布标签；只显示 Tag 本身，不带仓库前缀），缺失时写“未安装”，无法判断时写“未知”；最新列在检查之前写“未检查”，检查之后**无论与本地是否相同都给出官方最新 Tag**。
 
-1. **检查更新**（只读两次很小的探测，不下载）：MCP Server 看 GitHub 的 `releases/latest`（镜像拒绝 API 时退到仓库的 tag 列表），工具包看 `git ls-remote HEAD`；两边都走同一条加速线路。
-2. 只有 **新版本大于当前版本** 时才出现“更新依赖”：先停掉正在运行的 MCP 桥与技能目录（Windows 不允许替换正在运行的 exe，技能监视器也不该看着目录被重写），再下载/克隆、重新挂载。工具包先克隆到 `*.incoming`，完整克隆成功才替换旧目录——更新失败时旧副本原样保留并被重新挂回；二进制本身是“临时文件 + 原子改名”。更新期间右下角的进度对话框标题会变成“正在更新 MATLAB 依赖”。
+1. **检查更新**（只读两次很小的探测，不下载）：两者都看 GitHub 的 `releases/latest`；某条线路拒绝或限流 API 时，退到发布页本身（页面 `og:url` 里的 tag 就是 `releases/latest` 指向的那个）。两条探测都走最先可用的加速线路。
+2. 只有 **官方 Tag 与本地 Tag 不同** 时才出现“更新依赖”：先停掉正在运行的 MCP 桥与技能目录（Windows 不允许替换正在运行的 exe，技能监视器也不该看着目录被重写），再下载并重新挂载。工具包先解压到 `*.incoming`，完整解压成功才替换旧目录——更新失败时旧副本原样保留并被重新挂回；二进制本身是“临时文件 + 原子改名”。更新期间右下角的进度对话框标题会变成“正在更新 MATLAB 依赖”。
 
-工具包没有版本号，所以“更新”以提交为准：当前 checkout 的 `HEAD` 与远端的 `HEAD` 不同就算有更新（页面显示短 sha），相同则是最新。MCP Server 是 semver 比较（`v0.16.0 < v0.17.0`），不会因为镜像晚同步而“降级”。
+工具包的版本就是它自己的 Release Tag（`MATK-2026.11.a`），记录在安装目录里的 `.dsh-matlab-release.json`，所以“有更新”是 Tag 不相等，而不是“远端 HEAD 变了”。用 `toolkitRoots` 指向的工具包不会被比较、也不会被替换：那是用户的目录，不是插件的安装。MCP Server 是 semver 比较（`v0.16.0 < v0.17.0`），不会因为镜像晚同步而“降级”。
 
 ## 首次下载：沿用 DSH 的 GitHub 加速
 
-首次启动（本机还没有二进制与工具包）时，插件要从 GitHub 取两样东西：MATLAB MCP Server 的 Release 资产（v0.16.0 为 19.9 MB）与 Agentic Toolkit 仓库。这两样在中国大陆直连都很慢——2026-11-10 本机实测 **7 KB/s**，同一时刻经公共前缀是 **250 KB/s**（约 36 倍），直连下载会让 DSH 启动阶段停留几十分钟，表现为“启动保护/恢复助手”而不是可用界面。
+首次启动（本机还没有二进制与工具包）时，插件要从 GitHub 取两样东西：MATLAB MCP Server 的 Release 资产（v0.16.0 为 19.9 MB）与 Agentic Toolkit 最新 Release 的源码包（MATK-2026.11.a 为 3.4 MB，1433 个文件）。这两样在中国大陆直连都很慢——2026-11-10 本机实测 **7 KB/s**，同一时刻经公共前缀是 **250 KB/s**（约 36 倍），直连下载会让 DSH 启动阶段停留几十分钟，表现为“启动保护/恢复助手”而不是可用界面。
 
 插件因此不自带代理，也不钉死某个镜像，而是**沿用 DSH 已经选好的线路**：
 
@@ -155,15 +155,15 @@ DSH 在插件第一次被加载之前不会运行它的任何代码，所以“�
 3. 当前 profile 的 `.dsh-market/state.json`——DSH 市场“GitHub 加速”保存的自定义前缀与下载区域；
 4. 区域：`downloadRegion` → 市场记录的 `region` → `global`。中国区线路表是 `gh-proxy.com` → `ghfast.top` → 直连。
 
-比“快”更硬的要求是**不能占用启动**：DSH Desktop 在宿主机 60 秒内没启动完成时会直接判失败——2026-11-10 本机日志里就是 `Host startup exceeded 60 seconds`，而那一刻插件正卡在 `git clone` 上；即便走加速线路，首次准备也可能要 1～2 分钟，仍然超预算。所以首次获取被放到**后台**：激活只发现本地已有产物（毫秒级返回），缺失的部分在后台下载/克隆，完成后自动挂载技能与 MCP 桥，启动不再等网络。
+比“快”更硬的要求是**不能占用启动**：DSH Desktop 在宿主机 60 秒内没启动完成时会直接判失败——2026-11-10 本机日志里就是 `Host startup exceeded 60 seconds`，而那一刻插件正卡在首次下载上；即便走加速线路，首次准备也可能要 1～2 分钟，仍然超预算。所以首次获取被放到**后台**：激活只发现本地已有产物（毫秒级返回），缺失的部分在后台下载，完成后自动挂载技能与 MCP 桥，启动不再等网络。
 
 ```text
 matlab-agentic: github: gh-proxy.com -> ghfast.top -> direct (region china from market)
-matlab-agentic: no Agentic Toolkit checkout found; cloning it in the background so the fetch cannot hold up startup
+matlab-agentic: no MATLAB Agentic Toolkit found; downloading the newest release in the background so the fetch cannot hold up startup
 matlab-agentic: the MATLAB MCP Server binary is missing; downloading it in the background so the fetch cannot hold up startup
 ```
 
-此时 `status.phase` 是 `provisioning`；后台完成后变成 `ready`，日志接着出现 `cloned … via gh-proxy.com`、`installed …`、`connected; tools appear as mcp__matlab__<tool>`。想“启动即等到准备好”就调 `provisionWaitMs`，但请留在 60 秒以内：
+此时 `status.phase` 是 `provisioning`；后台完成后变成 `ready`，日志接着出现 `extracted … from matlab/matlab-agentic-toolkit MATK-2026.11.a via gh-proxy.com`、`installed …`、`connected; tools appear as mcp__matlab__<tool>`。想“启动即等到准备好”就调 `provisionWaitMs`，但请留在 60 秒以内：
 
 ```yaml
 - id: matlab-agentic
@@ -171,12 +171,13 @@ matlab-agentic: the MATLAB MCP Server binary is missing; downloading it in the b
     provisionWaitMs: 30000   # 最多等 30 秒；没完成的部分继续在后台跑
 ```
 
-前缀的用法与公共反代一致：把完整目标 URL 放进路径（`https://gh-proxy.com/https://github.com/...`）。工具包的 `git clone` 走同一串线路（DSH 市场的 git 线路把直连放首位，因为它只读 ref 广告；克隆要搬整个仓库包，所以这里把加速线路放前面）。每条线路都以直连收尾：镜像挂了应该退化成“慢”，而不是“启动不了”。
+前缀的用法与公共反代一致：把完整目标 URL 放进路径（`https://gh-proxy.com/https://github.com/...`）。工具包的 `archive/refs/tags/<tag>.tar.gz` 与二进制的 `releases/latest/download/...` 走同一串线路（DSH 市场的 git 线路把直连放首位，因为它只读 ref 广告；这里搬的是几 MB 的包体，所以把加速线路放前面）。每条线路都以直连收尾：镜像挂了应该退化成“慢”，而不是“启动不了”。
 
 实际走了哪条线路，日志与状态路由都会写明：
 
 ```text
-matlab-agentic: cloning https://gh-proxy.com/https://github.com/matlab/matlab-agentic-toolkit.git
+matlab-agentic: downloading https://gh-proxy.com/https://github.com/matlab/matlab-agentic-toolkit/archive/refs/tags/MATK-2026.11.a.tar.gz
+matlab-agentic: extracting 1433 file(s) from matlab/matlab-agentic-toolkit MATK-2026.11.a
 matlab-agentic: downloading https://gh-proxy.com/https://github.com/matlab/matlab-mcp-server/releases/latest/download/matlab-mcp-server-windows-x64.exe
 matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 bytes via gh-proxy.com)
 ```
@@ -197,7 +198,7 @@ matlab-agentic: installed …\.dsh\matlab\bin\matlab-mcp-server.exe (19905376 by
     # provisionTimeoutMs: 600000         # 线路较慢时放宽单次首次准备的预算
 ```
 
-预算是硬边界：单次首次准备默认 300 秒，每条线路另有“无数据 30 秒即放弃”的看门狗，`git clone` 还带 `http.lowSpeedLimit/Time`。一条坏线路最多浪费几十秒，不会把启动拖成“打不开”。
+预算是硬边界：单次首次准备默认 300 秒，每条线路另有“无数据 30 秒即放弃”的看门狗；解压本身就发生在同一次预算里。一条坏线路最多浪费几十秒，不会把启动拖成“打不开”。
 
 前缀只接受 `https://`、不含凭据与查询串——下载的是随后要执行的程序，明文或可改写的线路等于允许中间人替换它。环境变量里的值不合法时只在日志告警并忽略（那是运维的设置，不是本插件的配置）；`githubProxy` 配置不合法会直接激活失败，并给出可用的写法。
 
@@ -254,7 +255,7 @@ Now you can use DeepSeek to work with MATLAB.
 
 5. 若启用了插件但本机还没有二进制/工具包：右下角会出现进度对话框，`status.phase` 为 `provisioning`；准备完成后对话框提示就绪，工具与技能自动出现。
 
-6. 在 **设置 → MATLAB → 更新依赖** 点“检查更新”：MCP Server 应显示当前/最新版本（同一版本时提示“已是最新”），工具包显示两侧短 sha。两条探测各走一次加速线路，不下载任何业务数据。
+6. 在 **设置 → MATLAB → 更新依赖** 点“检查更新”：三列表应给出本地 Tag 与官方最新 Tag（MCP Server 是 `v0.16.0`，工具包是 `MATK-2026.11.a`；两者相同时最新列也会写出同一个 Tag）。两条探测各走一次加速线路，不下载任何业务数据。
 
 ## 技能组：默认全部，可按需收窄
 
@@ -350,25 +351,25 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | 路径 | 内容 |
 | --- | --- |
 | `$DSH_HOME/matlab/bin/matlab-mcp-server.exe` | 从 GitHub Release 下载的 MCP Server |
-| `$DSH_HOME/matlab/toolkits/matlab-agentic-toolkit/` | `git clone --depth 1` 的工具包 |
+| `$DSH_HOME/matlab/toolkits/matlab-agentic-toolkit/` | 从最新 Release 源码包解压的工具包，`.dsh-matlab-release.json` 记着它来自哪个 Tag |
 | `$DSH_HOME/matlab/logs/` | MCP Server 与 MATLAB 的日志（`--log-folder`） |
 
-这里没有的，就是没有：不存在“再看看 `~/.matlab/agentic-toolkits`”这一步。这条规则让 DSH 里的版本与机器上别处的副本互不干扰，也让“缺了就下载、要更新就更新”有唯一答案。唯一例外是显式设置的 `mcpServerPath`（你明确指定的可执行文件）与 `toolkitRoots`（你明确指定的 checkout）——那是用户的选择，不是自动发现。
+这里没有的，就是没有：不存在“再看看 `~/.matlab/agentic-toolkits`”这一步。这条规则让 DSH 里的版本与机器上别处的副本互不干扰，也让“缺了就下载、要更新就更新”有唯一答案。唯一例外是显式设置的 `mcpServerPath`（你明确指定的可执行文件）与 `toolkitRoots`（你明确指定的目录）——那是用户的选择，不是自动发现。
 
-实测（全新 `DSH_HOME`、DSH 市场为中国区）：激活 **0.1 秒**返回并把首次准备放到后台，后台经 `gh-proxy.com` 下载 19.9 MB 二进制 52 秒、克隆工具包 46 秒完成并自动挂载；同一时刻直连 GitHub 只有约 7 KB/s，需要几十分钟。第二次启动不再联网，也不再有后台任务。逐项拆分如下：
+实测（全新 `DSH_HOME`、DSH 市场为中国区）：激活 **0.1 秒**返回并把首次准备放到后台，后台经 `gh-proxy.com` 下载 19.9 MB 二进制 52 秒；工具包走同一个前缀下载 3.36 MB 源码包并解压 1433 个文件只用了 **2.4 秒**（单次 HTTP 响应，没有 git 往返）；同一时刻直连 GitHub 只有约 7 KB/s，需要几十分钟。第二次启动不再联网，也不再有后台任务。逐项拆分如下：
 
 | 能力 | 本插件 | 需要额外一步 |
 | --- | --- | --- |
 | MATLAB MCP Server 二进制 | ✅ 自动下载官方 Release（19.9 MB，实测 v0.16.0，经加速线路 52 秒） | 离线/内网：手动下载后设 `mcpServerPath` |
 | 5 个 MCP 工具 + 2 个 `guidelines://` 资源 | ✅ 探测即通过 | — |
-| 技能文件落地 | ✅ `git clone --depth 1` 官方工具包（24 组 / 158 个技能） | 无 `git`：自行 clone 后设 `toolkitRoots` |
+| 技能文件落地 | ✅ 自动安装官方工具包的最新 Release 源码包（24 组 / 158 个技能，实测 `MATK-2026.11.a`） | 离线/内网：手动解压后设 `toolkitRoots` |
 | 技能挂载数量 | ✅ 默认全量：24 组 / 158 个（实测） | 想省 token 就在设置页收窄，或写 `skillGroups` |
 | 复用你正在用的 MATLAB 会话（`sessionMode: existing`） | ❌ 需要 MATLAB 侧装 add-on | 跑一次 `<DSH_HOME>/matlab/bin/matlab-mcp-server.exe --setup-matlab --matlab-root=<MATLAB根>`，再在 MATLAB 里 `shareMATLABSession()` |
-| Simulink 技能与 `tools/tools.json` 工具扩展 | ❌ 不会自动克隆 Simulink 工具包 | 自行 clone 后设 `toolkitRoots`（插件只从自己的目录读，不碰安装器那份） |
+| Simulink 技能与 `tools/tools.json` 工具扩展 | ❌ 不会自动安装 Simulink 工具包 | 自行解压后设 `toolkitRoots`（插件只从自己的目录读，不碰安装器那份） |
 | 记住你在安装器里选的 MATLAB 版本 | ⚠️ 不读安装器记录，按 环境变量 → PATH → 注册表 → 最新安装目录 发现 | 多版本共存时显式设 `matlabRoot` |
 | 遥测默认关闭 | ✅ 默认关闭（`disableTelemetry: true`） | 需要时在设置页取消勾选，或设 `disableTelemetry: false` |
-| 更新依赖 | ✅ 设置页“检查更新/更新依赖”（只比版本，不盲目重下） | — |
-| 二次启动 | ✅ 复用已下载的二进制与 checkout，不再联网（实测 0 次下载） | — |
+| 更新依赖 | ✅ 设置页“检查更新/更新依赖”（按 Release Tag 比较，两侧都显示 Tag） | — |
+| 二次启动 | ✅ 复用已下载的二进制与工具包，不再联网（实测 0 次下载） | — |
 
 结论：**MCP 与技能都能完全靠插件跑通，技能默认全量挂载（24 组 / 158 个）**；而“接管当前 MATLAB 会话”和“Simulink”这两条，仍然需要额外一步手动操作。
 
@@ -379,8 +380,9 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | `phase: "tools"` 且日志 `probe failed` | 二进制能启动但握手失败：看 `status.probe.stderr`，多为 MATLAB 许可或 `--matlab-root` 指错 |
 | 日志 `matlabRoot does not exist` | `matlabRoot` 指向已卸载版本；清空该字段让其重新发现 |
 | 没有 `mcp__matlab__*` 工具 | profile 未组合 `dsh-mcp-client`，或 `serverName` 与他人冲突（同名实例互斥） |
-| 技能目录里没有 MATLAB 技能 | 未找到工具包 checkout；在 设置 → MATLAB 里点“检查并安装缺失依赖”，或设 `toolkitRoots` |
-| 首次启动没有 `mcp__matlab__*` 工具、`status.phase` 是 `provisioning` | 首次准备在后台进行中，约 1～2 分钟后自动挂载；看日志里 `cloning …` / `downloading …` 的进度。想启动即等到完成可设 `provisionWaitMs`（≤60 秒） |
+| 技能目录里没有 MATLAB 技能 | 未找到工具包；在 设置 → MATLAB 里点“检查并安装缺失依赖”，或设 `toolkitRoots` |
+| 首次启动没有 `mcp__matlab__*` 工具、`status.phase` 是 `provisioning` | 首次准备在后台进行中，约 1～2 分钟后自动挂载；看日志里 `downloading …` / `extracted …` 的进度。想启动即等到完成可设 `provisionWaitMs`（≤60 秒） |
+| 设置页“更新依赖”里本地 Tag 显示“未知” | 该工具包不是本插件装的（旧版本 `git clone` 的副本，或 `toolkitRoots` 指向的目录），没有记录 Release Tag；前者点一次“更新依赖”就会换成带 Tag 的官方发布包 |
 | Windows 下 MATLAB 起不来且无日志 | MATLAB 需要 `WINDIR`；插件已显式透传，若仍失败请检查启动器环境 |
 | 首次启动卡在下载、最后进了恢复助手 | 直连 GitHub 在国内约 7 KB/s；先看日志里 `github: …` 一行用了哪条线路。把 DSH 市场的下载区域设为“中国区”，或设 `githubProxy` / `DSHM_GITHUB_PROXY`（见“首次下载”一节） |
 | 下载失败（企业代理） | DSH 启动器会把 `HTTPS_PROXY` 应用到 `fetch`；纯 Node 环境下需 `NODE_USE_ENV_PROXY=1`。也可手动下载二进制后设 `mcpServerPath` |
@@ -395,7 +397,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 
 ```bash
 pnpm install         # 只为开发：装 @deepseek-ai/cordis，用于激活契约测试
-node --test          # 128 个用例；插件本身无构建步骤、无运行时依赖
+node --test          # 143 个用例；插件本身无构建步骤、无运行时依赖
 ```
 
 - 纯 ESM，`lib/` 即运行时，无需编译；

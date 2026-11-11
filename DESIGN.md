@@ -114,13 +114,13 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 `required` 标记现在有两层含义：默认选择仍是全部；用户收窄时，必需组却是**不能排除**的。页面把必需组的勾选框锁定为已选且禁用，“全不选”也保留它们；Host 侧的 `selectSkillGroups` 会在保存的名单缺少必需组时补回，并且按工具包顺序输出。这样厂商“每个用户都需要”的声明不会被一份旧名单或页面 bug 绕过。
 
-插件会自己 `git clone --depth 1` 拿到完整工具包（24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在挂载多少。
+插件会自己安装官方工具包的最新 Release（当前为 `MATK-2026.11.a`，24 组 / 158 技能），所以“技能文件缺失”不会发生；差异只在挂载多少。
 
-选择单位是“组”，因为 MathWorks 的布局是 `skills-catalog/<group>/<skill>/SKILL.md`，而 DSH 的 provider 以目录为根——只有把组目录当根才能同时满足两者，也正好保留了“组”这个厂商给出的按需加载单位。细到单个技能时，插件支持自建裁剪目录（`skills-catalog/<技能名>` 用软链指向真实技能），此时技能名就是组名；读取器必须跟随符号链接与目录联接，否则 Windows 的 junction 会被 `Dirent.isDirectory()` 判为 false 而静默丢弃。真正需要额外一步才能得到的能力有两项：`sessionMode: existing` 所需的 MATLAB add-on（`matlab-mcp-server --setup-matlab`）与 Simulink 工具包（自行 clone 后设 `toolkitRoots`）。
+选择单位是“组”，因为 MathWorks 的布局是 `skills-catalog/<group>/<skill>/SKILL.md`，而 DSH 的 provider 以目录为根——只有把组目录当根才能同时满足两者，也正好保留了“组”这个厂商给出的按需加载单位。细到单个技能时，插件支持自建裁剪目录（`skills-catalog/<技能名>` 用软链指向真实技能），此时技能名就是组名；读取器必须跟随符号链接与目录联接，否则 Windows 的 junction 会被 `Dirent.isDirectory()` 判为 false 而静默丢弃。真正需要额外一步才能得到的能力有两项：`sessionMode: existing` 所需的 MATLAB add-on（`matlab-mcp-server --setup-matlab`）与 Simulink 工具包（自行解压后设 `toolkitRoots`）。
 
 ### 4.4 依赖只从插件数据目录来
 
-`$DSH_HOME/matlab` 是依赖的唯一位置：`bin/` 放 MCP Server，`toolkits/` 放 checkout，`logs/` 放服务日志。插件**不读取** `~/.matlab/agentic-toolkits`（MathWorks 安装器的目录），也不读它的 `config.json`——那份记录里的 `matlab.root` 曾经是 MATLAB 版本的首选提示，但它同时让“二进制与工具包从哪来”有了两个答案，版本一旦不同就会出现“DSH 里跑的到底是哪一份”。MATLAB 自身的发现顺序因此收敛为：显式配置 → 环境变量 → `PATH` → Windows 注册表 → 平台安装目录（取最新版本）。
+`$DSH_HOME/matlab` 是依赖的唯一位置：`bin/` 放 MCP Server，`toolkits/` 放解压出来的工具包（带一个记录 Release Tag 的 `.dsh-matlab-release.json`），`logs/` 放服务日志。插件**不读取** `~/.matlab/agentic-toolkits`（MathWorks 安装器的目录），也不读它的 `config.json`——那份记录里的 `matlab.root` 曾经是 MATLAB 版本的首选提示，但它同时让“二进制与工具包从哪来”有了两个答案，版本一旦不同就会出现“DSH 里跑的到底是哪一份”。MATLAB 自身的发现顺序因此收敛为：显式配置 → 环境变量 → `PATH` → Windows 注册表 → 平台安装目录（取最新版本）。
 
 代价是用户不能再指望安装器替 DSH 准备依赖；回报是“缺了就下载、要更新就更新”只有一个答案，而且删掉 `$DSH_HOME/matlab` 就能干净地重来。显式的 `mcpServerPath` / `toolkitRoots` 仍是用户自己的选择，不算自动发现。
 
@@ -134,9 +134,11 @@ DSH 的 filesystem provider 只扫描一层（`<root>/<name>/SKILL.md`），而 
 
 ### 4.7 缺失时自动准备，但绝不占用启动
 
-`autoProvision: true` 时：二进制缺失 → 从 GitHub Release 下载（先试现名 `matlab-mcp-server-<os>-<arch>`，再试旧名 `matlab-mcp-core-server-<matlabarch>`）；工具包缺失 → `git clone --depth 1` 到插件数据目录（`HTTPS_PROXY` 会翻译成 `git -c http.proxy`）。已存在任何官方产物时绝不下载，避免留下第二份、可能过期的副本。
+`autoProvision: true` 时：二进制缺失 → 从 GitHub Release 下载（先试现名 `matlab-mcp-server-<os>-<arch>`，再试旧名 `matlab-mcp-core-server-<matlabarch>`）；工具包缺失 → 下载它最新 Release 的源码包（`archive/refs/tags/<tag>.tar.gz`，3.4 MB）并解压到插件数据目录。已存在任何官方产物时绝不下载，避免留下第二份、可能过期的副本。
 
-关键在于这两件事**不在激活路径上等**。DSH Desktop 会在宿主机 60 秒内没有启动完成时直接判失败（`Host startup exceeded 60 seconds`，见 2.0.22-next 的 `desktop-runtime`），而首次获取是 19.9 MB 下载加一次仓库克隆——加速后仍可能合计 1～2 分钟（本机实测 71.6 秒）。因此激活只做本地发现：已有产物就地挂载（毫秒级），缺失的那一半记进 `plan`，交由后台任务 `provision()` 完成后再挂载，`status.phase` 在期间为 `provisioning`。`provisionWaitMs`（默认 0）允许 profile 选择“最多等这么久”，但默认不赌网络。
+**工具包为什么是 Release 源码包而不是仓库**：MathWorks 的 Release 页面本身不带资产，可下载内容就是 GitHub 为该 tag 生成的源码包。拉这个包是**一次 HTTP 响应**，而 `git clone` 要几百次往返、几个包体，还要本机有 `git`；同一台机器实测 3.36 MB 的包经 `gh-proxy.com` 2.4 秒装完（1433 个文件），克隆要 46 秒。更关键的是语义：发布包对应一个**官方 Tag**，所以“本地是什么版本”有确切答案，而不是“当时 `main` 是什么”。解压器只依赖 `node:zlib`，支持 ustar/pax 长路径、只接受落在目标目录内的路径，符号链接只在指向目录内部时才重建。
+
+关键在于这两件事**不在激活路径上等**。DSH Desktop 会在宿主机 60 秒内没有启动完成时直接判失败（`Host startup exceeded 60 seconds`，见 2.0.22-next 的 `desktop-runtime`），而首次获取是 19.9 MB 下载加 3.4 MB 工具包——加速后仍可能合计 1～2 分钟（本机实测二进制 52 秒）。因此激活只做本地发现：已有产物就地挂载（毫秒级），缺失的那一半记进 `plan`，交由后台任务 `provision()` 完成后再挂载，`status.phase` 在期间为 `provisioning`。`provisionWaitMs`（默认 0）允许 profile 选择“最多等这么久”，但默认不赌网络。
 
 代价说清楚：首次启动后的头一两分钟里，模型还看不到 MATLAB 工具与技能（日志与状态路由会明说“正在后台获取”），第二次启动则完全不再联网。这个取舍是正确的，因为另一种结果——宿主机起不来——连“稍后可用”都换不到。
 
@@ -170,7 +172,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 所以这里有两件事，缺一不可：
 
 1. **走 DSH 已经选好的加速线路**（快）；
-2. **首次获取放到后台**（不占启动）——因为加速也保证不了 60 秒内完成，实测加速后仍需 71.6 秒。
+2. **首次获取放到后台**（不占启动）——因为加速也保证不了 60 秒内完成，实测加速后二进制仍需 52 秒。
 
 “给插件加一个代理服务器”是能工作的方案，但它会引入第二个事实来源：DSH 已经在**设置 → 插件 → 插件配置 → GitHub 加速**里管理区域、自定义前缀与回退顺序（`dshmarket` 的 `lib/regions.js`），运维还能用 `DSHM_GITHUB_PROXY` 覆盖。插件若自己存一份代理地址，用户就得在两处保持一致，而任何一处失效都会变成“插件坏了”。所以这里**不新增代理，只消费 DSH 已经做出的决定**，优先级从最具体到最一般：
 
@@ -181,11 +183,11 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 `githubProxy` 只接受 `https://` 前缀、不含凭据、查询串与锚点：下载下来的是随后要执行的程序，明文线路等于允许中间人替换它。环境变量里给错值时只告警并忽略（那是运维的设置）；配置里给错值则激活失败，并给出可用的写法——遵循 §5 的“配置错误立刻失败，运行时依赖缺失降级继续”。
 
-线路的用法与公共反代一致：完整目标 URL 作为路径（`{prefix}/{url}`）。下载与克隆共享一张表，顺序是**加速线路在前、直连收尾**。这里与 DSH 市场的 git 线路（直连在前）刻意不同：市场只用 git 线路读 ref 广告，而 `git clone` 要搬整个仓库包，慢的正是这一段；直连保底仍在，镜像整体失效时退化为“慢”而不是“启动不了”。
+线路的用法与公共反代一致：完整目标 URL 作为路径（`{prefix}/{url}`）。二进制的下载与工具包的发布包共享一张表，顺序是**加速线路在前、直连收尾**。这里与 DSH 市场的 git 线路（直连在前）刻意不同：市场只用 git 线路读 ref 广告；这里搬的是几 MB 的包体，慢的正是这一段；直连保底仍在，镜像整体失效时退化为“慢”而不是“启动不了”。
 
-有界同样重要：`provisionTimeoutMs`（默认 300 秒）是单次首次准备的总预算，每条线路再加“无响应头 20 秒 / 无数据 30 秒即中止”的看门狗，`git clone` 另设 `http.lowSpeedLimit=1024` / `lowSpeedTime=30` 让 git 自己放弃塌陷的传输。这样一条死线路最多花掉几十秒；全部线路失败时后台任务把失败写进 `status.error` 与日志，下一次启动重新发现、重新尝试，而不是把启动挂住。
+有界同样重要：`provisionTimeoutMs`（默认 300 秒）是单次首次准备的总预算，每条线路再加“无响应头 20 秒 / 无数据 30 秒即中止”的看门狗。这样一条死线路最多花掉几十秒；全部线路失败时后台任务把失败写进 `status.error` 与日志，下一次启动重新发现、重新尝试，而不是把启动挂住。
 
-成功路径用实测确认过（同一台中国网络机器、全新 `DSH_HOME`、空安装根）：激活 **0.10 秒**返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，工具包经 `gh-proxy.com` 克隆后挂上 24 组 / 158 个技能，二进制 19,905,376 字节经 `gh-proxy.com` 装好（`--version` 为 `v0.16.0`），真实 MCP 握手探测到 5 个工具 / 2 个资源，71.6 秒后 `phase: ready`。状态路由同时给出 `github.{region,proxy,routes,source}` 与 `server.route`，所以“它到底走了哪条线路”不需要靠猜。
+成功路径用实测确认过（同一台中国网络机器、全新 `DSH_HOME`、空安装根）：激活 **0.10 秒**返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，工具包的 `MATK-2026.11.a` 源码包（3,359,163 字节 / 1433 个文件）经 `gh-proxy.com` 下载解压后挂上 24 组 / 158 个技能（本机单测实跑 2.4 秒），二进制 19,905,376 字节经 `gh-proxy.com` 装好（`--version` 为 `v0.16.0`），真实 MCP 握手探测到 5 个工具 / 2 个资源，`phase: ready`。状态路由同时给出 `github.{region,proxy,routes,source}`、`server.route` 与 `toolkitRelease.tag`，所以“它到底走了哪条线路、本地是哪一版”不需要靠猜。
 
 ### 4.11 设置页与进度对话框：配置交回 DSH，界面只占槽位
 
@@ -193,7 +195,7 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 **写路由必须是 `handler`，不能是 `resource`。** DSH 的 web carrier 把 `resource` 定义成 Fetch `Request → Response` 的只读形状，只放行 `GET`/`HEAD`；其它方法在函数运行前就被框架回 405（`Allow: GET, HEAD`）。首版把 `/config`、`/provision`、`/update` 也注册成 resource，于是页面上的保存、检查更新、安装依赖全部收到 405，而读状态却正常——这正是 1.0.1 修的回归。现在读路由仍是 resource，三个写路由改用 `handler(req, res)`：自己读有上限的 JSON body、校验 `content-type: application/json` 与同源 `Origin`，并用 JSON 回应每个结果（包括后台任务抛出的失败）。`test/api.test.js` 用一个复刻 carrier 方法规则的本地 HTTP server 覆盖这条边界，避免下次再靠“单元测试直接调 resource”把回归放过去。
 
-**改完立刻生效，靠的是 Cordis 的 volatile 语义。** volatile 变更不重启插件，只把新值提交进运行中的引用并发 `loader/volatile-update`。插件监听该事件（120 ms 合并一次），dispose 掉两个子插件（技能目录、MCP 桥）再按新值重挂：技能组变 → 只换 `customSkillDirs`；MATLAB 参数、命名空间、超时变 → 重建 MCP 桥。重挂时还会重新解析 MATLAB 根与 GitHub 加速线路：前者决定新桥启动哪个 MATLAB，后者决定下一次下载/克隆走哪条线路；若沿用激活时的旧值，页面改了 `matlabRoot` / `githubProxy` 也要等重启才生效。不联网、不重启，日志一行 `settings applied`。若后台正在取依赖，重挂排队到取完（`remountRequested`）。
+**改完立刻生效，靠的是 Cordis 的 volatile 语义。** volatile 变更不重启插件，只把新值提交进运行中的引用并发 `loader/volatile-update`。插件监听该事件（120 ms 合并一次），dispose 掉两个子插件（技能目录、MCP 桥）再按新值重挂：技能组变 → 只换 `customSkillDirs`；MATLAB 参数、命名空间、超时变 → 重建 MCP 桥。重挂时还会重新解析 MATLAB 根与 GitHub 加速线路：前者决定新桥启动哪个 MATLAB，后者决定下一次下载走哪条线路；若沿用激活时的旧值，页面改了 `matlabRoot` / `githubProxy` 也要等重启才生效。不联网、不重启，日志一行 `settings applied`。若后台正在取依赖，重挂排队到取完（`remountRequested`）。
 
 **进度对话框只是一个槽位。** `shell.overlay` 是框架级浮动层（本身可点击穿透，占用者自己决定 pointer-events），正好放右下角提示；`settings.section` 是“设置里一页”的席位。两个注册都不替换宿主 UI：`id` 用自己的，`order` 只决定排序。组件是手写 React（`client/client.js`），只用 `--dsw-alias-*` 主题变量、不 import 任何客户端基础库——DSH 自己的插件文档说得很直白：基础库 API 会变，一个抛错组件会把整个槽位条目打空。
 
@@ -205,13 +207,13 @@ Cordis 的 `Fiber._execute` 会校验插件激活的**返回值**：函数算 di
 
 依赖装好之后不会自己变新，而“每次启动都检查”又会把网络探测塞回启动路径。所以更新是**用户发起**的动作：设置页的“检查更新”只做两次很小的只读探测，一个字节的业务数据都不下载。
 
-在用户按下按钮之前，卡片按激活状态显示“当前 …”或“已安装”（MCP Server 用 `--version` 解析出的版本，工具包只报已安装），只有 `updates` 比较结果缺失且产物确实不存在时才写“未安装”。首版把“还没比较”直接渲染成“未安装”，让一个已经挂载了 24 组技能的工具包看起来缺失，这是必须避免的误报：状态投影要么来自磁盘事实，要么明确说“尚未检查”。
+在用户按下按钮之前，卡片按激活状态显示本地 Tag：MCP Server 用 `--version` 里解析出的 `vX.Y.Z`，工具包用安装目录里 `.dsh-matlab-release.json` 记的 Tag（旧版 `git clone` 的副本没有这个文件，显示“未知”而不是编一个版本）；只有 `updates` 比较结果缺失且产物确实不存在时才写“未安装”。首版把“还没比较”直接渲染成“未安装”，让一个已经挂载了 24 组技能的工具包看起来缺失，这是必须避免的误报：状态投影要么来自磁盘事实，要么明确说“尚未检查”。1.1.0 起卡片是一张三列表（模块 / 本地 Tag / 最新 Tag）：最新列在检查前写“未检查”，检查后**即使与本地相同也写出官方 Tag**——用户问的是“官方现在是哪一版”，不是“要不要更新”。
 
-- MCP Server 的最新版本来自 GitHub 的 `releases/latest`——与安装时 `releases/latest/download/…` 指向同一个 release；镜像拒绝 `api.github.com` 时退到 `git ls-remote --tags` 取最高 semver。当前版本来自 `matlab-mcp-server --version` 里的 `vX.Y.Z`。只有 `latest > current` 才算更新（逐段数值比较，不是字符串比较），所以镜像晚同步不会触发“降级”。
-- 工具包没有版本号，只能以提交为准：当前 `git -C <checkout> rev-parse HEAD` 与远端 `git ls-remote <repo> HEAD` 不同即有更新，页面显示两边短 sha；相同就是最新。
-- 两条探测都走与安装相同的加速线路，失败时各自记录原因，互不影响。
+- MCP Server 的最新版本来自 GitHub 的 `releases/latest`——与安装时 `releases/latest/download/…` 指向同一个 release；某条线路拒绝或限流 `api.github.com` 时，退到发布页本身（`og:url` 里的 tag 就是 `releases/latest` 指向的那个），所以限流不会让检查整体失败。当前版本来自 `matlab-mcp-server --version` 里的 `vX.Y.Z`。只有 `latest > current` 才算更新（逐段数值比较，不是字符串比较），所以镜像晚同步不会触发“降级”。
+- 工具包的版本就是它的 Release Tag（`MATK-2026.11.a`）：安装时写进 `.dsh-matlab-release.json`，检查时与 `releases/latest` 的 tag 直接比较，相等即最新。工具包发的是月度序列，不是 semver，所以不做数值比较。
+- 两条探测都走与安装相同的加速线路，失败时各自记录原因，互不影响。`toolkitRoots` 指向的工具包不参与比较：插件不会替换用户的目录，给出“有更新”只会指向一个它不会执行的动作。
 
-真正的替换必须**先停下在跑的那一半**：Windows 不允许替换被进程打开的可执行文件，技能监视器也不该看着 checkout 在自己脚下被重写。于是顺序是 dispose → 替换 → 重新挂载，进度对话框显示 `kind: update`。替换本身也不直接覆盖：工具包先 clone 到 `<checkout>.incoming`，**只有完整克隆成功**才 `rm` 旧目录并 `rename` 就位（失败时 `.incoming` 被清掉、旧 checkout 原封不动，`scanToolkits` 还会忽略以 `.incoming` 结尾的目录）；二进制的下载本来就走“临时文件 + 原子改名”。更新失败时状态是 `failed` 并写明原因，插件随后用磁盘上的旧副本把技能与 MCP 桥重新挂回来（`recoverAfterFailedUpdate`），所以一次失败的更新不会把可用能力弄没。
+真正的替换必须**先停下在跑的那一半**：Windows 不允许替换被进程打开的可执行文件，技能监视器也不该看着目录在自己脚下被重写。于是顺序是 dispose → 替换 → 重新挂载，进度对话框显示 `kind: update`。替换本身也不直接覆盖：工具包先解压到 `<install>.incoming`，**只有完整解压成功**才 `rm` 旧目录并 `rename` 就位（失败时 `.incoming` 被清掉、旧目录原封不动，`scanToolkits` 还会忽略以 `.incoming` 结尾的目录）；二进制的下载本来就走“临时文件 + 原子改名”。更新失败时状态是 `failed` 并写明原因，插件随后用磁盘上的旧副本把技能与 MCP 桥重新挂回来（`recoverAfterFailedUpdate`），所以一次失败的更新不会把可用能力弄没。
 
 更新只做一次“当前 → 最新”，没有后台轮询或自动更新：静默替换用户正在依赖的工具属于越权（§4.8 的“不做设置页面”在这里同样适用——每一件影响运行中能力的事都应该由用户按下按钮）。
 
@@ -237,7 +239,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 
 | 失败点 | 行为 | 用户看到 |
 | --- | --- | --- |
-| 找不到工具包 | `autoProvision` 为真则克隆，否则告警继续 | 日志 + `status.toolkit: []`；工具仍可用 |
+| 找不到工具包 | `autoProvision` 为真则安装最新 Release，否则告警继续 | 日志 + `status.toolkit: []`；工具仍可用 |
 | `skillGroups` 里有未知组 | **激活失败**（配置错误自包含，尽早失败） | 报错里列出所有可用组名 |
 | 找不到 MATLAB | 告警继续，让 MCP 服务自己报错 | `status.matlab: undefined` + 服务 stderr |
 | 二进制缺失 | 后台下载；本次启动的工具稍后挂载 | 日志 `downloading …`；`status.phase: provisioning` → `ready` |
@@ -274,8 +276,8 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 ## 7. 安全
 
 - 子进程只用 argv 传递参数，不拼接 shell 字符串；`shell: false`；
-- 下载只从 MathWorks 的 GitHub Release，经可选的反代前缀（仅 `https://`、无凭据/查询串），校验体积下限与文件头（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），先写临时文件再原子改名并置可执行位——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当服务装上；
-- `git clone` 关掉交互式凭据提示（`GIT_TERMINAL_PROMPT=0`），避免无人值守的启动挂在密码输入上；
+- 下载只从 MathWorks 的 GitHub（Release 资产或该 tag 的源码包），经可选的反代前缀（仅 `https://`、无凭据/查询串）。二进制校验体积下限与文件头（Windows 要求 `MZ`，POSIX 接受 ELF/Mach-O 或 `#!` 脚本），先写临时文件再原子改名并置可执行位；工具包校验 gzip 魔数与 tar 头校验和，**拒绝任何绝对路径、`..` 段或指向目标目录之外的符号链接**，只解压到一个空的暂存目录，完整成功后才替换旧目录——公共反代在上游失效时常用自家 HTML 错误页冒充 200，不能把它当程序或技能装上；
+- 解压后不执行任何来自工具包的内容：技能是 `SKILL.md` 文本，`tools/tools.json` 只是 MCP 工具定义；插件本身只运行 MathWorks 的 `matlab-mcp-server` 二进制；
 - 不读取、不写入 MATLAB 许可证或凭据；`dsh-mcp-client` 默认会清理名字含 `KEY/PASSWORD/SECRET/TOKEN` 的环境变量，插件只补充 `WINDIR`（Windows 上 MATLAB 必需）；
 - 状态路由只读、无副作用，且仅在 profile 里有 `ctx.webServer` 时注册；写路由使用 carrier 的 `handler`，校验同源与 `application/json`，body 上限 256 KiB；
 - MathWorks 遥测默认关闭（`disableTelemetry: true`，透传 `--disable-telemetry=true`）；只有用户显式取消勾选才会向 MathWorks 发送使用数据。插件自身不收集、不上报任何遥测；
@@ -286,13 +288,13 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 设计是否成立，用这几条判定（均已在本机实测通过）：
 
 1. **真机握手**：插件自己下载到 `$DSH_HOME/matlab/bin` 的 `matlab-mcp-server.exe` v0.16.0，探测返回 5 个工具、2 个资源、协议 `2025-06-18`；
-2. **真机发现**：`$DSH_HOME/matlab` 里取到二进制与含 24 组的工具包 checkout，MATLAB 根由 环境变量 / PATH / 注册表 / 安装目录 发现（本机为 `R2023b`）；
+2. **真机发现**：`$DSH_HOME/matlab` 里取到二进制与含 24 组的工具包（`.dsh-matlab-release.json` 记录 `MATK-2026.11.a`），MATLAB 根由 环境变量 / PATH / 注册表 / 安装目录 发现（本机为 `R2023b`）；
 3. **绑定正确**：默认选中全部 24 组（158 个技能），技能根为各 `skills-catalog/<group>` 目录；MCP 参数含 `--matlab-session-mode=auto --matlab-root=… --matlab-display-mode=desktop --log-folder=…`；
 4. **规则正确**：`existing` 模式自动丢弃 `--matlab-root` / `--matlab-display-mode` / `--initial-working-folder` 并给出警告；
 5. **失败可读**：未知技能组、缺失二进制、探测失败、桥连接失败各自有不同的、可操作的报告；
 6. **技能格式兼容**：158 个 `SKILL.md` 的 `name` 全为 kebab-case 且与目录同名、`description` 齐全——这很关键，因为 DSH 的 filesystem provider 对不合格技能是**静默丢弃**，不会告诉模型“这个技能坏了”；
 7. **配置契约**：用真实 schemastery 校验 `Config` 的默认值、枚举与类型拒绝路径；并验证 `.volatile()` 字段经 `resolveOptions` 解包后能取到用户设置（否则设置会被静默忽略）。
-8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，工具包 24 组 / 158 个技能挂载，真实 MCP 握手 5 工具 / 2 资源，71.6 秒后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
+8. **首次获取走加速线路且不占启动**（本机实测）：激活 0.10 秒返回 `phase: provisioning`；后台 `github: gh-proxy.com -> ghfast.top -> direct (region china)`，19.9 MB 二进制经 `gh-proxy.com` 装好、`--version` 返回 `v0.16.0`，`MATK-2026.11.a` 源码包（3.36 MB / 1433 个文件）2.4 秒装完并挂上 24 组 / 158 个技能，真实 MCP 握手 5 工具 / 2 资源，随后 `phase: ready`；第二次启动 0 次下载、0 后台任务。
 9. **设置页与进度对话框的宿主契约**：`test/api.test.js` 覆盖 `state/progress/config/provision/update` 五条路由、写路由必须是 `handler`（并用本地 HTTP server 复刻 carrier 的 GET/HEAD 规则做真 POST）、非 volatile 拒绝、503 与 409 冲突、405/415/403、必需技能组无法被排除、遥测默认值；`test/activate.test.js` 覆盖组清单投影、`loader/volatile-update` 触发的重挂（含 MATLAB 根与加速线路重解析）、下载进度的百分比。真实浏览器里的渲染需要在重启后目视确认（插件代码无法在宿主运行期间重启宿主），这一条注明为“待目视”，不冒充已验证。
 
 ## 9. 已知限制与后续方向
@@ -302,7 +304,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 - **不管理 MATLAB 安装本身**：`matlab-install-products` 技能可以让 Agent 参与安装，但安装过程仍归 MATLAB。
 - **Simulink 只是顺带支持**：检测到 Simulink 工具包时会加载其技能组与 `tools/tools.json` 扩展；未做针对 Simulink 的专门验证（本机未安装 Simulink）。
 - **加速路线跟随 DSH，不另建配置中心**：插件读 DSH 市场持久化的区域与前缀，也接受 `DSHM_GITHUB_PROXY` 与自己的 `githubProxy`（见 §4.10）。若 DSH 将来改变市场状态的存放位置或字段名，插件会退化为“直连 + 配置前缀可用”，不会因此无法启动；反过来说，插件不会把自己的线路写回市场状态，两边的写入权仍归 DSH。
-- **首次启动有一段“工具还没出现”的窗口**：获取在后台（本机实测 71.6 秒完成），期间模型看不到 MATLAB 工具与技能，`status.phase` 为 `provisioning`。这是为了不越过 DSH Desktop 的 60 秒启动上限（§4.7）；想让首次启动等到完成，用 `provisionWaitMs`（但必须 ≤ 60 秒）。若将来 DSH 提供“安装期预置”或“就绪前阻塞但不判失败”的机制，这一段应该交给它。
+- **首次启动有一段“工具还没出现”的窗口**：获取在后台（本机实测二进制 52 秒、工具包 2.4 秒），期间模型看不到 MATLAB 工具与技能，`status.phase` 为 `provisioning`。这是为了不越过 DSH Desktop 的 60 秒启动上限（§4.7）；想让首次启动等到完成，用 `provisionWaitMs`（但必须 ≤ 60 秒）。若将来 DSH 提供“安装期预置”或“就绪前阻塞但不判失败”的机制，这一段应该交给它。
 - **后台挂载依赖 Cordis 的延迟 `ctx.plugin`**：插件被卸载后后台任务若仍在跑，挂载会以 “inactive context” 失败并被记录为 `status.error`，不会污染进程；成功路径已由 `test/activate.test.js` 的“never holds activation”用例覆盖。
 - **设置页的字段集合等于 volatile 集合**：想从页面改一个字段，就得把它标成 `.volatile()`，代价是该字段的变更不再走“重启插件”的默认语义，而由本插件自己重挂（§4.11）。这是有意的交换：页面要即时生效，就必须自己承担重挂的正确性，而重挂路径有测试覆盖；若将来某个字段需要“重启才生效”的语义，就别把它放进页面。
 - **进度对话框不做取消**：一次下载开始后不能在页面里中途取消；关掉对话框只是隐藏，后台继续（这正是“不阻塞启动”的另一面）。要中止只能退出宿主进程。

@@ -102,6 +102,17 @@ export interface Toolkit {
   readonly extensionFiles: readonly string[]
 }
 
+/** Which published release an installed toolkit came from. */
+export interface ToolkitRelease {
+  /** Install folder the release was extracted into. */
+  readonly root: string
+  /** Release tag, for example `MATK-2026.11.a`; absent for an unmarked checkout. */
+  readonly tag?: string
+  readonly installedAt?: string
+  /** Whether the folder is the one the plugin owns, which is the only one it replaces. */
+  readonly managed: boolean
+}
+
 /** Outcome of a stdio MCP handshake probe. */
 export interface ProbeResult {
   readonly ok: boolean
@@ -144,7 +155,7 @@ export interface ActivationStatus {
   readonly progress?: {
     readonly active: boolean
     readonly kind: 'install' | 'update'
-    readonly stage: 'idle' | 'clone' | 'download' | 'done' | 'failed'
+    readonly stage: 'idle' | 'toolkit' | 'download' | 'done' | 'failed'
     readonly bytes: number
     readonly totalBytes?: number
     readonly route?: string
@@ -158,6 +169,8 @@ export interface ActivationStatus {
     readonly groups: readonly string[]
     readonly extensionFiles: readonly string[]
   }[]
+  /** Which published release the local catalog came from, when it is known. */
+  readonly toolkitRelease?: ToolkitRelease
   readonly skills: readonly { readonly name: string; readonly toolkit: string; readonly path: string; readonly skills: number }[]
   readonly probe?: ProbeResult
   readonly warnings: readonly string[]
@@ -344,6 +357,27 @@ export declare function compareVersions(left: readonly number[], right: readonly
 export declare function isNewer(latest: unknown, current?: unknown): boolean
 
 /**
+ * Ask GitHub which release of a repository is newest.
+ * @param options - repository slug, acceleration routes, and seams.
+ * @returns the newest tag, the route that answered, and how it answered.
+ */
+export declare function latestRelease(options?: {
+  slug: string
+  label?: string
+  routes?: readonly (string | null)[]
+  fetchImpl?: typeof fetch
+  timeoutMs?: number
+  log?: (entry: { level: string; message: string }) => void
+}): Promise<{ tag: string; route: string | null; source: 'api' | 'page' }>
+
+/**
+ * Read the release tag a page or URL names.
+ * @param text - page HTML, or a final response URL.
+ * @returns the decoded tag, or `undefined`.
+ */
+export declare function releaseTagFromText(text: unknown): string | undefined
+
+/**
  * Ask GitHub which MATLAB MCP Server release is newest.
  * @param options - acceleration routes and seams.
  * @returns the newest tag, its version, and the route that answered.
@@ -351,32 +385,113 @@ export declare function isNewer(latest: unknown, current?: unknown): boolean
 export declare function latestServerRelease(options?: {
   routes?: readonly (string | null)[]
   fetchImpl?: typeof fetch
-  run?: (command: string, args?: readonly string[], options?: Record<string, unknown>) => Promise<{ code: number; stdout: string; stderr: string }>
   timeoutMs?: number
   log?: (entry: { level: string; message: string }) => void
-}): Promise<{ tag: string; version: string; route: string | null }>
+}): Promise<{ tag: string; version: string; route: string | null; source: 'api' | 'page' }>
+
+/** Repository and folder names of one installable toolkit. */
+export interface ToolkitSource {
+  readonly slug: string
+  readonly folder: string
+  readonly displayName: string
+}
+
+/** The toolkit repositories this plugin can install. */
+export declare const TOOLKIT_SOURCES: Readonly<Record<'matlab' | 'simulink', ToolkitSource>>
 
 /**
- * Ask the repository which commit the toolkit's default branch points at.
- * @param options - repository, routes, and seams.
- * @returns the commit sha and the route that answered.
+ * Where one toolkit is installed inside the plugin data folder.
+ * @param dataRoot - the plugin data folder (`$DSH_HOME/matlab`).
+ * @param kind - `matlab` or `simulink`.
+ * @returns the absolute install directory.
  */
-export declare function latestToolkitHead(options: {
-  repo: string
+export declare function toolkitDirectory(dataRoot: string, kind: string): string
+
+/**
+ * Download URL of one release's source archive.
+ * @param slug - GitHub `owner/name`.
+ * @param tag - release tag.
+ * @returns an absolute URL on github.com.
+ */
+export declare function releaseArchiveUrl(slug: string, tag: string): string
+
+/**
+ * Read which release an installed toolkit came from.
+ * @param root - installed toolkit folder.
+ * @returns the recorded release, or `undefined` when the folder carries no marker.
+ */
+export declare function readToolkitRelease(root: string): Promise<ToolkitRelease | undefined>
+
+/** Options for installing or replacing a toolkit. */
+export interface ToolkitInstallOptions {
+  kind: 'matlab' | 'simulink'
+  dataRoot: string
   routes?: readonly (string | null)[]
-  run?: (command: string, args?: readonly string[], options?: Record<string, unknown>) => Promise<{ code: number; stdout: string; stderr: string }>
+  tag?: string
   timeoutMs?: number
-}): Promise<{ sha: string; route: string | null }>
+  fetchImpl?: typeof fetch
+  onAttempt?: (attempt: { route: string | null }) => void
+  onProgress?: (progress: { bytes: number; totalBytes?: number }) => void
+  log?: (entry: { level: string; message: string }) => void
+}
+
+/** What an install or update produced. */
+export interface ToolkitInstallResult {
+  readonly root: string
+  readonly tag: string
+  readonly route: string | null
+  readonly bytes: number
+  readonly files: number
+  readonly skipped?: number
+  /** True when a concurrent install had already produced the folder. */
+  readonly reused?: boolean
+}
 
 /**
- * Read the commit a checkout is on.
- * @param options - checkout root and runner.
- * @returns the commit sha, or `undefined` when the folder is not a git checkout.
+ * Install a toolkit from its newest release when none is present.
+ * @param options - kind, destination root, routes, and diagnostic seams.
+ * @returns the install root, its release tag, and the route that served it.
  */
-export declare function localToolkitHead(options: {
-  root: string
-  run?: (command: string, args?: readonly string[], options?: Record<string, unknown>) => Promise<{ code: number; stdout: string; stderr: string }>
-}): Promise<string | undefined>
+export declare function installToolkit(options: ToolkitInstallOptions): Promise<ToolkitInstallResult>
+
+/**
+ * Replace a toolkit installation with the newest published release.
+ * @param options - the same options {@link installToolkit} takes.
+ * @returns the install root, its release tag, and the route that served it.
+ */
+export declare function updateToolkit(options: ToolkitInstallOptions): Promise<ToolkitInstallResult>
+
+/**
+ * Whether a payload starts like a gzip stream.
+ * @param buffer - downloaded bytes.
+ * @returns true when the two gzip magic bytes are present.
+ */
+export declare function isGzip(buffer: Uint8Array): boolean
+
+/**
+ * Read the entries of an uncompressed tar payload.
+ * @param tar - uncompressed tar bytes.
+ * @returns entries in archive order.
+ */
+export declare function listTarEntries(tar: Uint8Array): Array<{
+  path: string
+  type: 'file' | 'directory' | 'symlink'
+  mode: number
+  size: number
+  link: string
+  data: Uint8Array | undefined
+}>
+
+/**
+ * Extract a `.tar.gz` payload into a directory.
+ * @param archive - the gzip payload.
+ * @param options - destination and the number of leading segments to strip.
+ * @returns how many files were written, their total bytes, and what was skipped.
+ */
+export declare function extractTarGz(
+  archive: Uint8Array,
+  options: { destination: string; stripComponents?: number },
+): Promise<{ files: number; bytes: number; skipped: number }>
 
 /**
  * Discover Agentic Toolkit checkouts.

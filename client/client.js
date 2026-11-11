@@ -58,7 +58,7 @@ window.__ModuleLoader__.load({
         selectNone: '全不选',
         required: '必需',
         skillsUnit: '个技能',
-        noToolkit: '还没有找到工具包 checkout。装一次依赖后这里会列出技能组。',
+        noToolkit: '还没有找到 MATLAB 技能目录。装一次依赖后这里会列出技能组。',
         matlabTitle: 'MATLAB',
         matlabRoot: 'MATLAB 根目录',
         matlabRootHint: '留空则按 安装器记录 → 环境变量 → PATH → 注册表 → 安装目录 自动发现。',
@@ -93,7 +93,7 @@ window.__ModuleLoader__.load({
         regionGlobal: '直连',
         routes: '当前线路',
         timeout: '单次准备预算（毫秒）',
-        timeoutHint: '下载或克隆的总预算；只约束后台任务。',
+        timeoutHint: '下载二进制或安装工具包的总预算；只约束后台任务。',
         wait: '启动最多等待（毫秒）',
         waitHint: '0 表示首次准备完全在后台进行，不阻塞启动；最大不超过 60000。',
         watch: '监视工具包变化',
@@ -102,6 +102,11 @@ window.__ModuleLoader__.load({
         maintenanceHint: '检查二进制与工具包是否就绪；缺什么就下载什么，全程在后台进行。',
         updatesTitle: '更新依赖',
         updatesHint: '检查 MathWorks 与工具包仓库发布的最新版本；只有比当前新时才下载。更新会先停掉正在运行的 MCP 桥与技能目录，再重新挂载。',
+        artifactColumn: '模块',
+        localTagColumn: '本地 Tag',
+        latestTagColumn: '最新 Tag',
+        unknownTag: '未知',
+        notChecked: '未检查',
         checkUpdates: '检查更新',
         updateNow: '更新依赖',
         checking: '正在检查…',
@@ -109,18 +114,14 @@ window.__ModuleLoader__.load({
         upToDate: '已是最新',
         checkFailed: '检查失败，原因见上方',
         updateAvailable: '有可用更新',
-        updatesNever: '尚未检查。',
-        currentLabel: '当前',
-        latestLabel: '最新',
         notInstalled: '未安装',
-        installedLabel: '已安装',
         toolkitLabel: '工具包',
         updateKindTitle: '正在更新 MATLAB 依赖',
         installMissing: '检查并安装缺失依赖',
         installed: '依赖已就绪',
         retry: '重试',
         progressTitle: '正在准备 MATLAB 依赖',
-        progressClone: '正在克隆 MATLAB Agentic Toolkit…',
+        progressToolkit: '正在下载 MATLAB Agentic Toolkit 发布包…',
         progressDownload: '正在下载 MATLAB MCP Server…',
         progressDone: 'MATLAB 依赖已就绪',
         progressFailed: 'MATLAB 依赖准备失败',
@@ -164,7 +165,7 @@ window.__ModuleLoader__.load({
         selectNone: 'Select none',
         required: 'required',
         skillsUnit: 'skills',
-        noToolkit: 'No toolkit checkout yet. Installing the dependencies once will list the groups here.',
+        noToolkit: 'No MATLAB skill catalog yet. Installing the dependencies once will list the groups here.',
         matlabTitle: 'MATLAB',
         matlabRoot: 'MATLAB root',
         matlabRootHint: 'Empty discovers it: installer record → environment → PATH → registry → install folders.',
@@ -199,7 +200,7 @@ window.__ModuleLoader__.load({
         regionGlobal: 'Direct',
         routes: 'Routes in force',
         timeout: 'Transfer budget (ms)',
-        timeoutHint: 'Budget for one download or clone; it bounds the background job only.',
+        timeoutHint: 'Budget for one binary download or toolkit install; it bounds the background job only.',
         wait: 'Startup wait (ms)',
         waitHint: '0 keeps the first fetch entirely in the background; 60000 is the useful maximum.',
         watch: 'Watch the toolkit',
@@ -208,6 +209,11 @@ window.__ModuleLoader__.load({
         maintenanceHint: 'Check the binary and the toolkit; anything missing is fetched in the background.',
         updatesTitle: 'Updates',
         updatesHint: 'Compares the installed artifacts with the newest published ones; only a newer version is downloaded. The running MCP bridge and skill catalog are stopped and remounted around the update.',
+        artifactColumn: 'Artifact',
+        localTagColumn: 'Local tag',
+        latestTagColumn: 'Latest tag',
+        unknownTag: 'unknown',
+        notChecked: 'not checked',
         checkUpdates: 'Check for updates',
         updateNow: 'Update dependencies',
         checking: 'Checking…',
@@ -215,18 +221,14 @@ window.__ModuleLoader__.load({
         upToDate: 'Up to date',
         checkFailed: 'Check failed; see the reason above',
         updateAvailable: 'Update available',
-        updatesNever: 'Not checked yet.',
-        currentLabel: 'Current',
-        latestLabel: 'Latest',
         notInstalled: 'not installed',
-        installedLabel: 'installed',
         toolkitLabel: 'Toolkit',
         updateKindTitle: 'Updating MATLAB dependencies',
         installMissing: 'Check and install what is missing',
         installed: 'Dependencies are ready',
         retry: 'Retry',
         progressTitle: 'Preparing MATLAB dependencies',
-        progressClone: 'Cloning the MATLAB Agentic Toolkit…',
+        progressToolkit: 'Downloading the MATLAB Agentic Toolkit release…',
         progressDownload: 'Downloading the MATLAB MCP Server…',
         progressDone: 'MATLAB dependencies are ready',
         progressFailed: 'Preparing the MATLAB dependencies failed',
@@ -315,6 +317,14 @@ window.__ModuleLoader__.load({
 .mp-group-count{font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;text-align:right}
 .mp-error{font-size:12px;color:var(--dsw-alias-state-error-primary);margin:0;overflow-wrap:anywhere}
 .mp-note{font-size:12px;color:var(--dsw-alias-label-secondary);margin:0}
+.mp-tags{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden}
+.mp-tags-row{display:grid;grid-template-columns:minmax(96px,1fr) minmax(0,1.1fr) minmax(0,1.1fr) max-content;gap:12px;align-items:center;padding:7px 12px;font-size:13px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mp-tags-row:last-child{border-bottom:0}
+.mp-tags-head{font-size:11px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
+.mp-tags-name{min-width:0;overflow-wrap:anywhere}
+.mp-tags-tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;min-width:0;overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
+.mp-tags-tag-idle{color:var(--dsw-alias-label-secondary);font-family:inherit}
+.mp-tags-error{grid-column:1 / -1}
 .mp-toast{position:fixed;right:20px;bottom:20px;width:320px;max-width:calc(100vw - 40px);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
 .mp-toast-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:600}
 .mp-toast-close{border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
@@ -642,57 +652,80 @@ window.__ModuleLoader__.load({
           h(Button, { onClick: onRefresh }, t('refresh'))))
     }
 
-    /** One artifact's current/latest line inside the Updates card. */
-    function UpdateRow({ t, label, status }) {
+    /**
+     * The release tag inside a version line.
+     *
+     * The server reports its version as `github.com/matlab/matlab-mcp-server
+     * v0.16.0`; the local-tag column wants the tag alone.
+     */
+    function releaseTag(text) {
+      if (typeof text !== 'string') return undefined
+      const match = /v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/u.exec(text)
+      if (match === null) return undefined
+      return match[0].startsWith('v') ? match[0] : `v${match[0]}`
+    }
+
+    /** One artifact's row: its name, the installed release tag, and the published one. */
+    function UpdateRow({ t, label, status, checked }) {
       const installed = status?.installed === true
-      const current = status?.current
-      const outdated = status?.outdated === true
-      const value = installed === false
+      const local = status?.current
+      const latest = status?.latest
+      const localTag = installed === false
         ? t('notInstalled')
-        : current === undefined || current === ''
-          ? t('installedLabel')
-          : `${t('currentLabel')} ${current}`
-      return h('div', { className: 'mp-row' },
-        h('span', { className: 'mp-label' }, label),
-        h('span', { className: 'mp-group-name' },
-          h('span', null, value),
-          status?.latest === undefined ? null : h('span', { className: 'mp-group-count' }, `${t('latestLabel')} ${status.latest}`),
-          outdated ? h(Badge, { tone: 'warn' }, t('updateAvailable')) : null,
-          status?.error === undefined ? null : h('span', { className: 'mp-error' }, status.error)))
+        : local === undefined || local === ''
+          ? t('unknownTag')
+          : local
+      // A check that has not run yet has nothing to report for the third column;
+      // once it has, the published tag is shown even when it equals the local one.
+      const hasLatest = checked === true && latest !== undefined && latest !== null && latest !== ''
+      return h('div', { className: 'mp-tags-row', role: 'row' },
+        h('span', { className: 'mp-tags-name', role: 'rowheader' }, label),
+        h('span', { className: 'mp-tags-tag', role: 'cell' }, localTag),
+        h('span', { className: 'mp-tags-tag', role: 'cell' },
+          h('span', { className: hasLatest ? undefined : 'mp-tags-tag-idle' }, hasLatest ? latest : t('notChecked')),
+          status?.outdated === true ? h(Badge, { tone: 'warn' }, t('updateAvailable')) : null),
+        status?.error === undefined || status.error === null
+          ? null
+          : h('span', { className: 'mp-error mp-tags-error' }, status.error))
     }
 
     function UpdatesCard({ t, state, busy, checking, onCheck, onUpdate }) {
       const updates = state.updates
       // Before the first check there is no comparison, but the page already
       // knows what is installed; reporting "not installed" from a missing
-      // comparison is what made a working checkout look broken.
+      // comparison is what made a working catalog look broken.
       const server = updates?.server ?? {
         installed: state.server !== null && state.server !== undefined,
-        current: state.server?.version,
+        current: releaseTag(state.server?.version),
         outdated: false,
       }
       const toolkit = updates?.toolkit ?? {
         installed: state.toolkit.length > 0,
-        current: undefined,
+        // The tag a managed install recorded; an older `git` checkout has none.
+        current: state.toolkitRelease?.tag,
         outdated: false,
       }
       const outdated = updates !== null && (updates.toolkit?.outdated === true || updates.server?.outdated === true)
       const failed = updates !== null && (
         (updates.server?.error !== undefined && updates.server.error !== null)
         || (updates.toolkit?.error !== undefined && updates.toolkit.error !== null))
-      const summary = updates === null
-        ? t('updatesNever')
-        : outdated
-          ? t('updateAvailable')
-          : failed
-            ? t('checkFailed')
-            : t('upToDate')
+      const summary = outdated
+        ? t('updateAvailable')
+        : failed
+          ? t('checkFailed')
+          : t('upToDate')
       return h('div', { className: 'mp-card' },
         h('h2', { className: 'mp-card-title' }, t('updatesTitle')),
         h('p', { className: 'mp-hint' }, t('updatesHint')),
-        h(UpdateRow, { t, label: t('serverTitle'), status: server }),
-        h(UpdateRow, { t, label: t('toolkitLabel'), status: toolkit }),
-        h('p', { className: 'mp-note' }, summary),
+        h('div', { className: 'mp-tags', role: 'table' },
+          h('div', { className: 'mp-tags-row mp-tags-head', role: 'row' },
+            h('span', { role: 'columnheader' }, t('artifactColumn')),
+            h('span', { role: 'columnheader' }, t('localTagColumn')),
+            h('span', { role: 'columnheader' }, t('latestTagColumn')),
+            h('span', { 'aria-hidden': 'true' })),
+          h(UpdateRow, { t, label: t('serverTitle'), status: server, checked: updates !== null }),
+          h(UpdateRow, { t, label: t('toolkitLabel'), status: toolkit, checked: updates !== null })),
+        updates === null ? null : h('p', { className: 'mp-note' }, summary),
         h('div', { className: 'mp-actions' },
           h(Button, { onClick: onCheck, disabled: busy || checking }, checking ? t('checking') : t('checkUpdates')),
           outdated ? h(Button, { variant: 'primary', onClick: onUpdate, disabled: busy }, t('updateNow')) : null))
@@ -925,13 +958,13 @@ window.__ModuleLoader__.load({
         ? t('progressDone')
         : failed
           ? t('progressFailed')
-          : progress.stage === 'clone'
-            ? t('progressClone')
+          : progress.stage === 'toolkit'
+            ? t('progressToolkit')
             : t('progressDownload')
 
       const meta = progress.stage === 'download' && progress.totalBytes !== null
         ? `${t('progressBytes')} ${formatBytes(progress.bytes)} / ${formatBytes(progress.totalBytes)}`
-        : progress.stage === 'download'
+        : progress.stage === 'download' || progress.stage === 'toolkit'
           ? `${t('progressBytes')} ${formatBytes(progress.bytes)}`
           : `${Math.round(progress.elapsedMs / 1000)} ${t('seconds')}`
 

@@ -72,6 +72,7 @@ function fakeState(overrides = {}) {
     matlab: undefined,
     server: { path: 'C:\\bin\\matlab-mcp-server.exe', source: 'download', version: 'v0.16.0', downloaded: true, route: 'gh-proxy.com' },
     toolkit: [{ root: 'C:\\t', displayName: 'MATLAB', kind: 'matlab', groups: ['core'], extensionFiles: [] }],
+    toolkitRelease: { root: 'C:\\t', tag: 'MATK-2026.11.a', installedAt: '2026-11-05T23:18:23.000Z', managed: true },
     github: { region: 'china', regionSource: 'market', proxy: null, proxySource: 'none', routes: ['gh-proxy.com', 'direct'] },
     progress: { active: false, stage: 'idle' },
     skills: [],
@@ -127,6 +128,9 @@ test('reports the live state the Settings page renders', () => {
   assert.equal(view.groups.length, 2)
   assert.equal(view.groups[0].selected, true)
   assert.equal(view.server.route, 'gh-proxy.com')
+  // The page shows which release the local catalog came from; the update table
+  // needs it for its "local tag" column.
+  assert.equal(view.toolkitRelease.tag, 'MATK-2026.11.a')
   assert.deepEqual(view.probe.tools, ['evaluate_matlab_code'])
   assert.deepEqual(view.github.routes, ['gh-proxy.com', 'direct'])
   assert.equal(view.editable, false)
@@ -152,7 +156,7 @@ test('turns a download into a percentage the dialog can draw', () => {
   assert.equal(progress.percent, 25)
   assert.equal(progress.stage, 'download')
   // No declared length keeps the bar indeterminate rather than inventing one.
-  assert.equal(progressView({ active: true, stage: 'clone', bytes: 10 }).percent, null)
+  assert.equal(progressView({ active: true, stage: 'toolkit', bytes: 10 }).percent, null)
 })
 
 test('writes only volatile fields through the settings service', async () => {

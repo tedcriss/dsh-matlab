@@ -159,8 +159,12 @@ function seams(binary) {
       tools: [{ name: 'evaluate_matlab_code', description: '' }],
       resources: [{ uri: 'guidelines://coding', name: 'coding' }],
     }),
-    cloneToolkit: async () => {
-      throw new Error('cloneToolkit must not run when a toolkit exists')
+    installToolkit: async () => {
+      throw new Error('installToolkit must not run when a toolkit exists')
+    },
+    readToolkitRelease: async () => undefined,
+    latestToolkitRelease: async () => {
+      throw new Error('latestToolkitRelease must not run without an explicit check')
     },
     countSkills: async () => 1,
     loadSkillProvider: async () => ({ apply: () => {}, name: 'fake-skill-filesystem' }),
@@ -433,7 +437,7 @@ test('provisions over the configured GitHub acceleration and reports the route',
   assert.equal(status.server.route, 'gh-proxy.com')
 })
 
-test('a missing toolkit is cloned over the same acceleration routes', async t => {
+test('a missing toolkit is installed from its newest release over the same routes', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   process.env.DSH_HOME = join(dir, 'dsh-home')
@@ -442,7 +446,7 @@ test('a missing toolkit is cloned over the same acceleration routes', async t =>
   const binary = await makeBinary(dir)
   const toolkit = await makeToolkit(dir)
   const { ctx } = fakeContext()
-  let cloned
+  let installed
 
   const status = await activate(ctx, baseConfig({ autoProvision: true,
     mcpServerPath: binary,
@@ -451,16 +455,19 @@ test('a missing toolkit is cloned over the same acceleration routes', async t =>
     provisionWaitMs: 2_000,
   }), {
     ...seams(binary),
-    cloneToolkit: async options => {
-      cloned = options
-      return { root: toolkit, route: 'https://gh-proxy.com' }
+    installToolkit: async options => {
+      installed = options
+      return { root: toolkit, tag: 'MATK-2026.11.a', route: 'https://gh-proxy.com' }
     },
+    readToolkitRelease: async () => ({ tag: 'MATK-2026.11.a', installedAt: '2026-11-05T23:18:23.000Z' }),
   })
 
-  assert.ok(cloned, 'cloneToolkit must run when no toolkit exists')
-  assert.deepEqual(cloned.routes, ['https://gh-proxy.com', null])
-  assert.equal(cloned.timeoutMs, 120_000)
+  assert.ok(installed, 'installToolkit must run when no toolkit exists')
+  assert.deepEqual(installed.routes, ['https://gh-proxy.com', null])
+  assert.equal(installed.timeoutMs, 120_000)
+  assert.equal(typeof installed.onProgress, 'function')
   assert.equal(status.skills.length, 2)
+  assert.equal(status.toolkitRelease.tag, 'MATK-2026.11.a')
   assert.deepEqual(status.github.routes, ['gh-proxy.com', 'direct'])
 })
 
@@ -473,27 +480,27 @@ test('the install button fetches even when automatic provisioning is off', async
   const binary = await makeBinary(dir)
   const webServer = recordingWebServer()
   const { ctx } = fakeContext({ skills: {}, webServer })
-  let cloned = 0
+  let installed = 0
 
   await activate(ctx, baseConfig({ autoProvision: false, mcpServerPath: binary }), {
     ...seams(binary),
-    cloneToolkit: async () => {
-      cloned += 1
-      return { root: await makeToolkit(dir), route: null }
+    installToolkit: async () => {
+      installed += 1
+      return { root: await makeToolkit(dir), tag: 'MATK-2026.11.a', route: null }
     },
   })
   // Activation obeys autoProvision: no fetch while it is off.
-  assert.equal(cloned, 0)
+  assert.equal(installed, 0)
 
   const response = await postJson(webServer.registered.find(entry => entry.path === API_PATHS.provision), {})
   assert.equal(response.status, 202)
   assert.equal(response.json.started, true)
   assert.deepEqual(response.json.missing, ['toolkit'])
 
-  for (let attempt = 0; attempt < 60 && cloned === 0; attempt += 1) {
+  for (let attempt = 0; attempt < 60 && installed === 0; attempt += 1) {
     await new Promise(resolve => setTimeout(resolve, 50))
   }
-  assert.equal(cloned, 1, 'the explicit install action must not be vetoed by autoProvision')
+  assert.equal(installed, 1, 'the explicit install action must not be vetoed by autoProvision')
 
   // Let the background mount finish before the temporary folder is removed.
   const stateRoute = webServer.registered.find(entry => entry.path === API_PATHS.state)
@@ -521,7 +528,7 @@ test('a first-time fetch never holds activation, because DSH abandons a slow sta
   const started = Date.now()
   const status = await activate(ctx, baseConfig({ autoProvision: true }), {
     ...seams(binary),
-    cloneToolkit: () => never,
+    installToolkit: () => never,
   })
 
   assert.ok(Date.now() - started < 5_000, `activation took ${String(Date.now() - started)} ms`)
@@ -553,11 +560,11 @@ mcp-server-extensions:
     provisionWaitMs: 2_000,
   }), {
     ...seams(binary),
-    cloneToolkit: async () => ({ root: toolkit, route: null }),
+    installToolkit: async () => ({ root: toolkit, tag: 'MATK-2026.11.a', route: null }),
   })
 
-  // Binding tools before the clone would drop the toolkit's extensions from the
-  // one and only connection; the background task must clone first.
+  // Binding tools before the install would drop the toolkit's extensions from the
+  // one and only connection; the background task must fetch the catalog first.
   assert.equal(status.phase, 'ready')
   assert.ok(mounts[1].config.args.includes(`--extension-file=${join(toolkit, 'tools', 'tools.json')}`))
 })
@@ -731,27 +738,27 @@ test('an update replaces only the outdated artifact and remounts it', async t =>
   t.after(() => delete process.env.DSH_HOME)
   isolatedGithubEnv(t)
   const binary = await makeBinary(dir)
-  const toolkit = await makeToolkit(dir)
+  // A catalog the plugin manages: only that one is replaceable by a release.
+  const toolkit = await makeToolkit(join(dir, 'dsh-home', 'matlab', 'toolkits'))
   const webServer = recordingWebServer()
   const { ctx, mounts } = fakeContext({ skills: {}, webServer })
   const calls = []
 
   const status = await activate(ctx, baseConfig({
-    toolkitRoots: [toolkit],
     mcpServerPath: binary,
   }), {
     ...seams(binary),
     serverVersion: async () => 'github.com/matlab/matlab-mcp-server v0.16.0',
     latestServerRelease: async () => ({ tag: 'v0.17.0', version: 'v0.17.0', route: 'https://gh-proxy.com' }),
-    localToolkitHead: async () => 'a'.repeat(40),
-    latestToolkitHead: async () => ({ sha: 'b'.repeat(40), route: 'https://gh-proxy.com' }),
+    readToolkitRelease: async () => ({ tag: 'MATK-2026.10.a', installedAt: '2026-10-22T00:00:00.000Z' }),
+    latestToolkitRelease: async () => ({ tag: 'MATK-2026.11.a', route: 'https://gh-proxy.com' }),
     updateMcpServer: async () => {
       calls.push('download')
       return { path: binary, source: 'download', downloaded: true, route: 'https://gh-proxy.com' }
     },
     updateToolkit: async () => {
       calls.push('update-toolkit')
-      return { root: toolkit, route: 'https://gh-proxy.com' }
+      return { root: toolkit, tag: 'MATK-2026.11.a', route: 'https://gh-proxy.com' }
     },
   })
   assert.equal(status.phase, 'ready')
@@ -765,8 +772,8 @@ test('an update replaces only the outdated artifact and remounts it', async t =>
   assert.equal(check.server.current, 'v0.16.0')
   assert.equal(check.server.latest, 'v0.17.0')
   assert.equal(check.server.outdated, true)
-  assert.equal(check.toolkit.current, 'aaaaaaa')
-  assert.equal(check.toolkit.latest, 'bbbbbbb')
+  assert.equal(check.toolkit.current, 'MATK-2026.10.a')
+  assert.equal(check.toolkit.latest, 'MATK-2026.11.a')
   assert.equal(check.toolkit.outdated, true)
   assert.deepEqual(calls, [], 'checking must not download')
 
@@ -783,4 +790,37 @@ test('an update replaces only the outdated artifact and remounts it', async t =>
   assert.equal(view.phase, 'ready')
   assert.equal(view.progress.kind, 'update')
   assert.equal(view.progress.stage, 'done')
+})
+
+test('a toolkit the user configured is never compared with a release or replaced', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'matlab-activate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  process.env.DSH_HOME = join(dir, 'dsh-home')
+  t.after(() => delete process.env.DSH_HOME)
+  isolatedGithubEnv(t)
+  const binary = await makeBinary(dir)
+  const toolkit = await makeToolkit(dir)
+  const webServer = recordingWebServer()
+  const { ctx } = fakeContext({ skills: {}, webServer })
+
+  await activate(ctx, baseConfig({
+    toolkitRoots: [toolkit],
+    mcpServerPath: binary,
+  }), {
+    ...seams(binary),
+    latestServerRelease: async () => ({ tag: 'v0.16.0', version: 'v0.16.0', route: null }),
+    updateToolkit: async () => {
+      throw new Error('an explicit toolkit must not be replaced')
+    },
+  })
+
+  const route = path => webServer.registered.find(entry => entry.path === path)
+  const check = (await postJson(route(API_PATHS.update), { check: true })).json
+  assert.equal(check.toolkit.installed, true)
+  assert.equal(check.toolkit.latest, undefined)
+  assert.equal(check.toolkit.outdated, false)
+  // The probe the plugin would use for its own install is never asked about a
+  // folder the user pointed at, so nothing offers to overwrite it.
+  const outcome = (await postJson(route(API_PATHS.update), {})).json
+  assert.equal(outcome.started, false)
 })
