@@ -2,7 +2,7 @@
 
 本文件是 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 收录所需的全部内容。
 
-## 0. 已有 PR 与审查意见（截至 2026-11-11）
+## 0. 已有 PR 与审查意见（截至 2026-11-12）
 
 | PR | 状态 | 审查结论 | 本次条目如何处理 |
 | --- | --- | --- | --- |
@@ -11,8 +11,9 @@
 | [#14185](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14185) | 已合并 | 合并时保留了加速线路披露，并补充“摘要经镜像读取时只能发现损坏/截断”这一限定 | 两段都原样保留：线路披露 + “If api.github.com cannot be reached the digest is read through the same mirror …” |
 | [#14195](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14195) | 已关闭（未合并） | **`name` 必须是 `owner/repo`**。纯显示名会让站点标题变成 `tedcriss/MATLAB Agentic Toolkit`、README 链接读成 MathWorks 官方产品；存量显示名是历史遗留，合并时会被改回；想要更直观的链接文字应改仓库名并走改名流程 | `name` 保持 `tedcriss/dsh-matlab`，本次 PR 不碰 `name`；需要更好链接文字时另走仓库改名 |
 | [#14203](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14203) | 已合并 | 为条目增加 `tarball:`，指向 v1.1.9 的预构建资产（钉 tag、资产名带版本号） | 保留 `tarball` 字段，改为 `releases/latest/download/dsh-plugin-matlab.tgz`：资产名已不带版本号，正是 `contributing.md` 推荐的第一种形态；钉 tag 的 `download/<tag>/` 形态不被市场的“可随 Release 更新”识别（`release-updates.ts` 只认 `latest/download/<asset>`），会让商店永远装同一版 |
+| [#14507](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14507) | 待评审 | 按作者要求换成更短的描述：官方技能包 + 原生 MCP 连接器、MATLAB R2021a+、设置页技能组开关、官方仓库来源。保留了作者给出的“触发率 90% 以上”与“完全规范化”表述；这两句没有代码或公开基准支撑，评审可能要求可核实来源 | 本文件 §2 与 `docs/store-entry.yml` 已同步为新描述；若评审要求，把这两个说法改成可核实表述（例如“交给原生 MCP 服务器执行”“按 MathWorks 的工具与技能规范工作”） |
 
-没有未处理的 inline review / review 意见：五个 PR 的 `reviews` 与 `pulls/*/comments` 都是空的，反馈都在合并说明与关闭说明里，已逐条对应到上表。
+没有未处理的 inline review / review 意见：上表已合并/已关闭 PR 的 `reviews` 与 `pulls/*/comments` 都是空的，反馈都在合并说明与关闭说明里，已逐条对应到上表；#14507 刚提交，尚无评审。
 
 ## 1. 变更背景（1.2.x）
 
@@ -36,8 +37,8 @@ name: tedcriss/dsh-matlab
 category: tools
 tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz
 description:
-  en: 'Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later. Installs from the plugin''s own prebuilt release archive. A DSH restart is usually unnecessary: the market mounts the plugin live, and a page refresh shows the MATLAB settings page; restart only when the market reports that the live mount failed. By default (autoProvision) it downloads the MathWorks MCP Server binary and installs the newest Agentic Toolkit release on first use. With the China download region or a configured GitHub prefix, both are fetched through the fastest measured acceleration prefix first (the plugin''s own, DSH''s market setting, or the built-in gh-proxy.com and ghfast.top routes) and then directly. The downloaded server binary is verified against the SHA-256 digest GitHub publishes for its release asset when the release metadata can be read, and a mismatch refuses the install; if api.github.com cannot be reached the digest is read through the same mirror, so the check then only catches a corrupted or truncated download. MathWorks telemetry is disabled by default; set disableTelemetry to false to re-enable it.'
-  zh: '把 MathWorks 的 MATLAB Agentic Toolkit 技能与 MATLAB MCP Server 工具接入 DeepSeek Harness。需要本机 MATLAB R2021a 及以上。从插件自己的预构建 Release 包安装。通常不需要重启 DSH：市场会热挂载插件，刷新页面即可看到 MATLAB 设置页；只有市场提示热挂载失败时才需要重启。默认（autoProvision）首次使用时会下载 MathWorks MCP Server 并安装工具包的最新 Release。下载区域为 china 或配置了 GitHub 前缀时，两者都会先经实测最快的加速前缀（插件自己的、DSH 市场的，或中国区内置的 gh-proxy.com、ghfast.top）下载，失败再直连。能读取 Release 元数据时，下载的 MCP Server 二进制会按 GitHub 公布的资产 SHA-256 摘要校验，不一致就拒绝安装；api.github.com 连不上时摘要也经同一个镜像读取，这时的校验只能发现下载损坏或被截断。MathWorks 遥测默认关闭，把 disableTelemetry 设为 false 才会重新开启。'
+  en: 'Connector for MathWorks'' official MATLAB Agentic Toolkit skills and the MATLAB MCP Server. Requires a local MATLAB R2021a or later. Skill groups can be enabled individually on the settings page. The toolkit is provided by MathWorks'' official repository https://github.com/matlab/matlab-agentic-toolkit; the trigger rate for MATLAB-related operations is over 90%, and it calls the native MCP server, so your AI works in a fully standardized way.'
+  zh: 'MathWorks 官方 MATLAB Agentic Toolkit 技能包 + MATLAB MCP Server 连接器。要求本机版本为 MATLAB R2021a 及以上。支持在设置页自定义开启技能组。该技能包由 MathWorks 官方仓库 https://github.com/matlab/matlab-agentic-toolkit 提供，MATLAB 相关操作触发率达到 90% 以上，可以调用原生 MCP 服务器，让你的 AI 完全规范化工作。'
 ```
 
 说明：
@@ -46,7 +47,7 @@ description:
 - `name` 保持 `owner/repo`：这是 #14195 关闭说明里明确的格式要求，**不要**改成 `MATLAB Agentic Toolkit` 这类显示名；想要更直观的链接文字只能走仓库改名流程。
 - **`tarball` 的资产名必须不带版本号。** 商店规范要求 GitHub Release 托管的 `https` `.tgz`；`releases/latest/download/<文件名>` 只在请求时解析 `latest`，文件名是照字面取的。带版本号的名字在下一个 Release 就会 404。本仓库的 `scripts/release.mjs` 与 `.github/workflows/release.yml` 都把资产固定命名为 `dsh-plugin-matlab.tgz`，就是为了这一条。
 - 这个 URL 形态也是 DSH 市场识别“可随 Release 更新”的唯一形态：它读 `raw.githubusercontent.com/tedcriss/dsh-matlab/<tag>/package.json` 核对版本，再把下一次安装指向 `releases/download/<tag>/dsh-plugin-matlab.tgz`。换成 `download/vX.Y.Z/` 也能装，但会失去自动更新。
-- 描述里的每一句都对得上代码：插件不实现 MATLAB 能力（只挂载 MathWorks 的 MCP Server 与技能目录）；`autoProvision` 默认 `true`；`disableTelemetry` 默认 `true`（= 遥测关闭）；`lib/github.js` 的 `rankRoutes()` 在下载前实测加速线路；“通常不需要重启”对应市场的热挂载，且插件激活已不再等待诊断（`lib/activate.js` 的 `collectDiagnostics`）。
+- 描述按作者要求改成了短版本。能对上代码的是：插件不实现 MATLAB 能力（只挂载 MathWorks 的 MCP Server 与技能目录）；“设置页自定义开启技能组”对应设置页的 24 个技能组开关；“官方仓库提供”对应工具包默认取自 `matlab/matlab-agentic-toolkit` 的 Release。**“触发率 90% 以上”与“完全规范化”没有代码或公开基准支撑**，是作者的表述；#14507 评审若追问，应改成可核实说法（例如“交给原生 MCP 服务器执行”“按 MathWorks 的工具与技能规范工作”）。
 - 不加 `icon:`：商店回退到作者头像，`icon.svg` 仍是插件自己的图标。
 - 不加 `npm:`：没有 npm 包，这一项也不允许手写；`tarball` 已覆盖“预构建安装”。
 
