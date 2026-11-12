@@ -260,7 +260,7 @@ tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plu
 
 市场的 `installTargetFor` 对带 `tarball` 的条目直接 `pnpm add <that URL>`，于是安装变成“一个约 100 KB 的 `.tgz`”，且这个 URL 形态（`releases/latest/download/<不含版本号的文件名>`）正好是市场自己识别“可随 Release 更新”的那一种：它会去 `raw.githubusercontent.com/<repo>/<tag>/package.json` 核对版本，再把下一次安装指到 `releases/download/<tag>/<同一个文件名>`。所以资产名必须**不带版本号**，否则 `latest/download` 在下一个 Release 就 404——这既是商店规范，也是更新的前提。
 
-包内只放运行期文件（`lib/`、`client/`、`locale/`、`icon.svg`、`cordis.patch.yml`、`screenshots.json`）。`assets/settings.png` 留在仓库里给商店截图用，不进包——700 KB 的截图对安装没有任何作用，却正好落在 Windows 查毒最愿意盯的那段时间里；包越小，被占用打断的窗口越小。README 里的截图引用因此改成绝对 URL，GitHub 与 npm 渲染都能取到。
+包内只放运行期文件（`lib/`、`client/`、`locale/`、`icon.svg`、`cordis.patch.yml`、`screenshots.json`）。`assets/cover.png` 与 `assets/settings.png` 留在仓库里给商店截图用，不进包——约 800 KB 的封面与 700 KB 的设置长截图对安装没有任何作用，却正好落在 Windows 查毒最愿意盯的那段时间里；包越小，被占用打断的窗口越小。README 里的截图引用因此改成绝对 URL，GitHub 与 npm 渲染都能取到。
 
 **激活不再等诊断。** 之前 `--version` 与一次性 MCP 握手各要起一个服务进程，二者都在激活路径上；市场给热挂载的预算是 10 秒（`HOT_MOUNT_TIMEOUT_MS`），一个冷机器上加上查毒扫描就可能超时，超时后市场只能告诉你“重启后生效”。现在激活只做“本地发现 → 挂组件 → 返回”，版本与探测交给 `collectDiagnostics()` 在后台跑，结果写回 `status.server.version` / `status.probe`，`status.diagnostics` 从 `pending` 变 `done`。`failOnStartupError` 是唯一例外：那个开关的语义就是“探测失败就别激活”，所以它仍然同步等待并可能拒绝激活。
 

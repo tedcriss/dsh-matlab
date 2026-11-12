@@ -52,14 +52,17 @@ description:
 
 ## 3. 截图：声明在**本仓库**里
 
-商店的详情页截图不从上面那个 YAML 里写，而是读插件仓库自己的 `screenshots.json`：
+商店的详情页截图不从上面那个 YAML 里写，而是读插件仓库自己的 `screenshots.json`；数组顺序就是展示顺序，**第一张就是首图**：
 
-- `screenshots.json` → `["assets/settings.png"]`
+- `screenshots.json` → `["assets/cover.png", "assets/settings.png"]`
+- `assets/cover.png` → **首图**：MathWorks 的 MATLAB Agentic Toolkit 封面（1600 × 1647，蓝色渐变底、MATLAB 峰线标记，以及 “MATLAB Agentic Toolkit / MATLAB 智能体工具包” 字样）
 - `assets/settings.png` → **设置 → MATLAB 整页长截图**（1600 × 6238，含带插件版本号的状态卡、“依赖”三列表与三个按键、全部 24 个技能组、带自动发现值/示例提示的输入框、“使用当前对话的工作区目录”开关与单行单选项，以及固定在底部的保存条）
 
 1.2.0 起截图不再进安装包（`package.json` 的 `files` 去掉 `assets` 与 `docs`），但仍在仓库里给商店读；README 的图片引用已改成绝对 URL，两处都能显示。
 
-想换图只需替换这两个文件再推本仓库，不用到商店仓库开 PR，下一次夜间构建自动生效。
+首图没有直接放 4120 × 4240 / 3.5 MB 的原图：缩到 1600 px 宽并做 PNG 优化后约 800 KB，商店卡片的缩略图本来就走 `images.weserv.nl` 按高度缩放，只有点开大图才会取这个尺寸。
+
+想换图只需替换文件并调整 `screenshots.json` 的顺序再推本仓库，不用到商店仓库开 PR，下一次夜间构建自动生效。
 
 生成方式（可复现）：在 DSH Web 界面打开 设置 → MATLAB，用浏览器开发者工具把设置面板的滚动容器撑到内容高度（`overflow: visible; height: auto`），再把技能组列表的 `max-height` 去掉，然后对设置面板做整页截图（`Page.captureScreenshot`，`captureBeyondViewport`，`scale: 2`）。
 
@@ -87,7 +90,7 @@ Update tedcriss/dsh-matlab: prebuilt release install, no restart
   recognized as updatable, so the entry kept installing 1.1.9 forever.
 - **The archive is now ~100 KB instead of 793 KB.** The package ships runtime files
   only (`lib/`, `client/`, `locale/`, `icon.svg`, `cordis.patch.yml`,
-  `screenshots.json`); the settings screenshot and the design docs stay in the
+  `screenshots.json`); the cover and settings screenshots and the design docs stay in the
   repository for the storefront, where `screenshots.json` already points at them.
   The asset the URL resolves to today is 104,739 bytes with SHA-256
   `4091a8bd7994bd8d716a890c3a9b60ac5ac814495cfc42a80405eb1b70b42b0c` (v1.2.3).
@@ -138,7 +141,7 @@ Update tedcriss/dsh-matlab: prebuilt release install, no restart
 
 1. `package.json` 的 `dsh.bundle` 仍在（CI 第一步会读它）；
 2. 仓库满 1 天（早已满足）；
-3. `screenshots.json` 指向的文件确实在 `main` 上（`assets/settings.png`）；
+3. `screenshots.json` 指向的文件确实在 `main` 上，且首图排在第一位（`assets/cover.png`、`assets/settings.png`）；
 4. PR 只改 `data/plugins/tedcriss__dsh-matlab.yml` 一个文件，不动别人的条目与生成的 README；
 5. `tarball` 指向的资产在最新 Release 上确实存在，且直连可下载：
    `curl -sIL "https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz?cb=1" | head -1`；
