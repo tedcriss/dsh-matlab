@@ -11,9 +11,10 @@
 | [#14185](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14185) | 已合并 | 合并时保留了加速线路披露，并补充“摘要经镜像读取时只能发现损坏/截断”这一限定 | 两段都原样保留：线路披露 + “If api.github.com cannot be reached the digest is read through the same mirror …” |
 | [#14195](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14195) | 已关闭（未合并） | **`name` 必须是 `owner/repo`**。纯显示名会让站点标题变成 `tedcriss/MATLAB Agentic Toolkit`、README 链接读成 MathWorks 官方产品；存量显示名是历史遗留，合并时会被改回；想要更直观的链接文字应改仓库名并走改名流程 | `name` 保持 `tedcriss/dsh-matlab`，本次 PR 不碰 `name`；需要更好链接文字时另走仓库改名 |
 | [#14203](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14203) | 已合并 | 为条目增加 `tarball:`，指向 v1.1.9 的预构建资产（钉 tag、资产名带版本号） | 保留 `tarball` 字段，改为 `releases/latest/download/dsh-plugin-matlab.tgz`：资产名已不带版本号，正是 `contributing.md` 推荐的第一种形态；钉 tag 的 `download/<tag>/` 形态不被市场的“可随 Release 更新”识别（`release-updates.ts` 只认 `latest/download/<asset>`），会让商店永远装同一版 |
-| [#14507](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14507) | 待评审 | 按作者要求换成更短的描述：官方技能包 + 原生 MCP 连接器、MATLAB R2021a+、设置页技能组开关、官方仓库来源。保留了作者给出的“触发率 90% 以上”与“完全规范化”表述；这两句没有代码或公开基准支撑，评审可能要求可核实来源 | 本文件 §2 与 `docs/store-entry.yml` 已同步为新描述；若评审要求，把这两个说法改成可核实表述（例如“交给原生 MCP 服务器执行”“按 MathWorks 的工具与技能规范工作”） |
+| [#14507](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14507) | 已关闭（未合并，原样重交为 [#14606](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14606)） | 按作者要求换成更短的描述：官方技能包 + 原生 MCP 连接器、MATLAB R2021a+、设置页技能组开关、官方仓库来源。保留了作者给出的“触发率 90% 以上”与“完全规范化”表述；这两句没有代码或公开基准支撑，评审可能要求可核实来源 | 该 PR 提交后先被关闭、又重开，重开后的 PR 一直没进评审队列；按作者要求关掉它，在新分支上原样重交（条目内容一字未改） |
+| [#14606](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14606) | 待评审 | 与 #14507 完全相同的改动（同一标题、同一正文、同样两行描述），只换了新分支；CI 结论待出，尚无评审意见 | 条目内容不变，仍是 §2 的短描述；若评审追问上面那两句，按可核实表述改写（例如“交给原生 MCP 服务器执行”“按 MathWorks 的工具与技能规范工作”） |
 
-没有未处理的 inline review / review 意见：上表已合并/已关闭 PR 的 `reviews` 与 `pulls/*/comments` 都是空的，反馈都在合并说明与关闭说明里，已逐条对应到上表；#14507 刚提交，尚无评审。
+没有未处理的 inline review / review 意见：上表已合并/已关闭 PR 的 `reviews` 与 `pulls/*/comments` 都是空的，反馈都在合并说明与关闭说明里，已逐条对应到上表；#14606 刚提交，尚无评审。
 
 ## 1. 变更背景（1.2.x）
 
