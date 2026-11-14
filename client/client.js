@@ -1260,6 +1260,20 @@ window.__ModuleLoader__.load({
         inject: () => ({ t }),
       }, ownerProps => h(SettingsPage, { t: ownerProps?.t ?? t, close: ownerProps?.close })))
 
+      // The bundle's own page in Plugin Manager renders the same settings page
+      // through `plugins.bundle.config`, so both entry points show one form and
+      // read/write one config through the same routes. The key is the bundle's
+      // package name as the profile records it; the legacy key keeps the page
+      // working for a profile that still links the pre-rename package name.
+      for (const bundleName of ['dsh-matlab', 'dsh-plugin-matlab']) {
+        ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
+          name: 'plugins.bundle.config',
+          key: bundleName,
+          locale: NS,
+          inject: () => ({ t }),
+        }, ownerProps => h(SettingsPage, { t: ownerProps?.t ?? t })))
+      }
+
       ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
         name: 'settings.section.icon',
         id: NS,
