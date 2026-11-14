@@ -15,7 +15,7 @@ function chainable(type) {
   schema.type = type
   schema['~standard'] = {
     version: 1,
-    vendor: 'dsh-plugin-matlab-test-stub',
+    vendor: 'dsh-matlab-test-stub',
     validate: value => ({ value }),
   }
   for (const method of ['default', 'description', 'volatile', 'pattern', 'min', 'max', 'required']) {

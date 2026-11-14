@@ -190,7 +190,7 @@ test('mounts the skill provider and the MCP bridge against MathWorks artifacts',
   }), seams(binary))
 
   assert.equal(status.phase, 'ready')
-  assert.equal(status.plugin, 'dsh-plugin-matlab')
+  assert.equal(status.plugin, 'dsh-matlab')
   assert.equal(status.version, VERSION)
   assert.equal(mounts.length, 2)
 

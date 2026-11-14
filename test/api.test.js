@@ -67,7 +67,7 @@ function fakeContext({ settings, webServer } = {}) {
 /** An activation state with every field the API reads. */
 function fakeState(overrides = {}) {
   const status = {
-    plugin: 'dsh-plugin-matlab',
+    plugin: 'dsh-matlab',
     version: '1.1.2',
     phase: 'ready',
     matlab: undefined,
@@ -481,7 +481,7 @@ test('waits for the web carrier when it is mounted after the plugin', async () =
   assert.deepEqual(registered.map(route => route.path).sort(), Object.values(API_PATHS).sort())
   const response = await registered.find(route => route.path === API_PATHS.state).resource(new Request(`http://127.0.0.1${API_PATHS.state}`))
   assert.equal(response.status, 200)
-  assert.equal((await response.json()).plugin, 'dsh-plugin-matlab')
+  assert.equal((await response.json()).plugin, 'dsh-matlab')
 })
 
 test('disposes its routes with the carrier', async () => {

@@ -11,11 +11,11 @@
  * is written here rather than imported from a client package, so a host upgrade
  * cannot blank the page.
  *
- * @module dsh-plugin-matlab/client
+ * @module dsh-matlab/client
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-plugin-matlab',
+  id: 'dsh-matlab',
   factory(require) {
     const React = require('react')
     const h = React.createElement

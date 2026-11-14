@@ -1,4 +1,4 @@
-# 设计说明：dsh-plugin-matlab
+# 设计说明：dsh-matlab
 
 > 目标一句话：**让 DSH 用上 MATLAB 的能力，同时让 DSH 里不存在第二份 MATLAB 能力。**
 
@@ -239,7 +239,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 
 为什么不去打 dsh-mcp-client 的猴子补丁、也不 fork 那个包：那会让插件与另一个包的内部实现绑死，一次升级就可能静默失效；而这条消息是插件**唯一**需要影响的东西，改写点就应该恰好这么小。代价是 stdio 路径上多一个 Node 进程，但它只做行切分与一次 JSON 解析，延迟可忽略，且失败会在连接阶段立刻暴露（探测先替用户发现）。
 
-实测：真实二进制经真实桥初始化后，服务端日志记录 `"client-name":"dsh-plugin-matlab","client-title":"DeepSeek"`，即 `connectionindicator` 会采用 DeepSeek。
+实测：真实二进制经真实桥初始化后，服务端日志记录 `"client-name":"dsh-matlab","client-title":"DeepSeek"`，即 `connectionindicator` 会采用 DeepSeek。
 
 **同一个桥还负责“按对话的工作区目录”。** `useWorkspaceFolder` 打开后，MATLAB 的当前文件夹应当跟着**发起调用的那个对话**走，而一个 MATLAB 会话只有一个当前文件夹——它不能是服务端启动参数（那样只对第一个对话成立）。MathWorks 的 `evaluate_matlab_code` 恰好有一个 `project_path` 参数，语义就是“执行前把当前文件夹设到这里”，所以文件夹应该**随调用传递**：
 
@@ -255,7 +255,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 商店里的 `url:` 是仓库，市场会先把仓库当成 `github:` 源：pnpm 解析 ref、下载整个仓库的 codeload 包、再按源安装——慢的是这几步，出错的也是这几步。1.2.0 起条目改写 `tarball:`：
 
 ```yaml
-tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz
+tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-matlab.tgz
 ```
 
 市场的 `installTargetFor` 对带 `tarball` 的条目直接 `pnpm add <that URL>`，于是安装变成“一个约 100 KB 的 `.tgz`”，且这个 URL 形态（`releases/latest/download/<不含版本号的文件名>`）正好是市场自己识别“可随 Release 更新”的那一种：它会去 `raw.githubusercontent.com/<repo>/<tag>/package.json` 核对版本，再把下一次安装指到 `releases/download/<tag>/<同一个文件名>`。所以资产名必须**不带版本号**，否则 `latest/download` 在下一个 Release 就 404——这既是商店规范，也是更新的前提。

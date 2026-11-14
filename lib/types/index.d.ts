@@ -6,7 +6,7 @@
  * then mounts `@deepseek-ai/dsh-mcp-client` and
  * `@deepseek-ai/dsh-skill-filesystem` against them.
  *
- * @module dsh-plugin-matlab
+ * @module dsh-matlab
  */
 
 import type { Context } from '@deepseek-ai/cordis'

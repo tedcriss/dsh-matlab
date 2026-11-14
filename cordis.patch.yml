@@ -9,4 +9,4 @@
 #       skillGroups: [matlab-core, signal-processing]
 - insert:
     - id: matlab-agentic
-      name: 'dsh-plugin-matlab'
+      name: 'dsh-matlab'
