@@ -434,11 +434,15 @@ window.__ModuleLoader__.load({
 .mp-empty{margin:0;padding:12px 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}
 
 /* The save row sticks to the bottom of whichever column scrolls.
-   The settings panel pads its content column 24px, so the row bleeds over that
-   padding and paints the same strip below itself. On the bundle page the
-   plugin page owns the column's inset and the row keeps its own box, so the
-   bleed is 0 and nothing is painted past it. */
-.mp-footer{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:12px;margin:0 calc(-1 * var(--mp-bleed));padding:12px var(--mp-bleed);background:var(--mp-canvas);border-top:0.5px solid var(--dsw-alias-border-l2);box-shadow:0 var(--mp-bleed) 0 0 var(--mp-canvas)}
+   The settings panel pads its content column 24px inline, so the row bleeds
+   over that padding and paints the same strip sideways; on the bundle page the
+   plugin page owns the column's inset, so the bleed is 0. The row pins to the
+   scrollport's content box, which leaves the scrollport's own bottom padding
+   visible under it and lets the page scroll through that strip. SaveFooter
+   measures the strip and publishes it as the --mp-footer-lip variable, and
+   drops the lip once the row rests at the page's end, so a row that is no
+   longer pinned never paints over the sections that follow the page. */
+.mp-footer{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:12px;margin:0 calc(-1 * var(--mp-bleed));padding:12px var(--mp-bleed);background:var(--mp-canvas);border-top:0.5px solid var(--dsw-alias-border-l2);box-shadow:0 var(--mp-footer-lip,0px) 0 0 var(--mp-canvas)}
 .mp-footer-message{flex:1;min-width:0;margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
 .mp-footer-message[data-tone='error']{color:var(--dsw-alias-state-error-primary)}
 .mp-footer-actions{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
@@ -1177,12 +1181,62 @@ window.__ModuleLoader__.load({
      * It is sticky rather than last-in-flow: the page is taller than the
      * settings viewport (a status line, the artifact table, and up to 24 skill
      * groups), and a save button nobody scrolls back to is a save button nobody
-     * finds. The settings panel pads its content column 24px, so the row bleeds
-     * over that padding and paints the same strip below itself; on the bundle
-     * page the column belongs to the plugin page, so the bleed is 0.
+     * finds. The settings panel pads its content column 24px inline, so the row
+     * bleeds over that padding sideways; on the bundle page the column belongs
+     * to the plugin page, so the bleed is 0.
+     *
+     * The hosts also pad their scrollports' bottom (24px in the settings panel,
+     * 48px on the plugin page) and a sticky row pins to the scrollport's content
+     * box: the padding stays visible under the pinned row and the page keeps
+     * scrolling through it, which reads as the page leaking below the row. The
+     * effect measures that strip and publishes it as `--mp-footer-lip`; at the
+     * row's flow position (the end of the page) the lip is 0, so a row that is
+     * not pinned never paints over the sections that follow the page. It writes
+     * a CSS variable rather than state, so a scroll or a resize never re-renders
+     * the form.
      */
     function SaveFooter({ t, busy, dirty, editable, message, onSave, onRevert }) {
-      return h('div', { className: 'mp-footer' },
+      const row = useRef(null)
+
+      useEffect(() => {
+        const node = row.current
+        const page = node === null ? null : node.parentElement
+        // The nearest scroll container is the box a sticky row pins to.
+        let scroller = page
+        while (scroller !== null) {
+          const overflowY = getComputedStyle(scroller).overflowY
+          if (overflowY !== 'visible' && overflowY !== 'clip') break
+          scroller = scroller.parentElement
+        }
+        if (page === null || scroller === null) return undefined
+
+        let frame = 0
+        const measure = () => {
+          frame = 0
+          const bar = node.getBoundingClientRect()
+          const scrollerBottom = scroller.getBoundingClientRect().bottom
+          // A pinned row sits above its flow position, so the page it belongs to
+          // still has content below it; at the end of the page the row rests.
+          const pinned = bar.bottom < page.getBoundingClientRect().bottom - 1
+          const lip = pinned ? Math.max(0, scrollerBottom - bar.bottom) : 0
+          node.style.setProperty('--mp-footer-lip', `${lip}px`)
+        }
+        const schedule = () => { if (frame === 0) frame = requestAnimationFrame(measure) }
+        measure()
+        scroller.addEventListener('scroll', schedule, { passive: true })
+        window.addEventListener('resize', schedule)
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null
+        observer?.observe(page)
+        observer?.observe(scroller)
+        return () => {
+          if (frame !== 0) cancelAnimationFrame(frame)
+          scroller.removeEventListener('scroll', schedule)
+          window.removeEventListener('resize', schedule)
+          observer?.disconnect()
+        }
+      }, [])
+
+      return h('div', { className: 'mp-footer', ref: row },
         h('p', { className: 'mp-footer-message', 'data-tone': message?.tone === 'error' ? 'error' : undefined, role: 'status' },
           message === null || message === undefined ? '' : message.text),
         h('div', { className: 'mp-footer-actions' },
