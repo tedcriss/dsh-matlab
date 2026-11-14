@@ -1,6 +1,6 @@
 {
   "name": "dsh-matlab",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Adds the MathWorks MATLAB Agentic Toolkit skills and the MATLAB MCP Server tools to DeepSeek Harness. Needs a local MATLAB R2021a or later. By default (autoProvision) it downloads the MathWorks MCP Server binary, verified against the release's published SHA-256 digest, and installs the newest Agentic Toolkit release on first use, and MathWorks telemetry is disabled unless the user turns it back on.",
   "license": "MIT",
   "author": {
@@ -41,6 +41,8 @@
     "cordis.patch.yml",
     "client/*.js",
     "locale/*.json",
+    "docs/DETAIL.md",
+    "docs/DETAIL.zh.md",
     "screenshots.json",
     "lib/index.js",
     "lib/*.js",

@@ -106,9 +106,35 @@ test('the client entry the manifest exports is published', async () => {
 
 test('the package ships no screenshot and no test file', async () => {
   const { files } = await manifest()
-  for (const dir of ['assets', 'docs', 'test', 'test-support', 'scripts']) {
+  for (const dir of ['assets', 'test', 'test-support', 'scripts']) {
     // A directory-level entry would drag in the repository's storefront and test
     // material, which the runtime never reads.
     assert.equal(files.some(pattern => pattern.split('/')[0] === dir), false, `${dir}/ must not ship`)
+  }
+  // The detail document a locale declares is the one runtime-read file under
+  // docs/; the storefront material beside it must not ship.
+  assert.deepEqual(
+    files.filter(pattern => pattern.split('/')[0] === 'docs').sort(),
+    ['docs/DETAIL.md', 'docs/DETAIL.zh.md'],
+  )
+})
+
+test('every locale detail document ships and exists', async () => {
+  const { files } = await manifest()
+  const locales = (await readdir(join(ROOT, 'locale'))).filter(name => name.endsWith('.json'))
+  assert.ok(locales.length > 0, 'at least one locale must exist')
+  for (const name of locales) {
+    const locale = JSON.parse(await readFile(join(ROOT, 'locale', name), 'utf8'))
+    const detail = locale?.meta?.detail
+    // A locale without meta.detail falls back through the language chain; a
+    // declared one must be packaged or the plugin page reports an invalid file.
+    if (detail === undefined) continue
+    assert.equal(typeof detail, 'string', `${name} meta.detail must be a string`)
+    assert.ok(included(detail, files), `${detail} (declared by ${name}) must be in files`)
+    assert.equal(
+      await stat(join(ROOT, detail)).then(() => true, () => false),
+      true,
+      `${detail} (declared by ${name}) must exist`,
+    )
   }
 })
