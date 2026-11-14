@@ -1,6 +1,6 @@
 # Attach the prebuilt plugin archive to every release tag.
 #
-# The store installs this plugin from `releases/latest/download/dsh-matlab.tgz`,
+# The store installs this plugin from `releases/latest/download/dsh-plugin-matlab.tgz`,
 # so the asset is what makes a tag installable. `scripts/release.mjs` uploads it
 # as part of a local release; this workflow is the safety net for a tag pushed by
 # hand (or a release created from the GitHub UI), so the two paths cannot drift
@@ -32,7 +32,7 @@ jobs:
           version=$(node -p "require('./package.json').version")
           # The asset name carries no version: `latest/download/` takes the name
           # literally, so a versioned name would 404 the day the next tag ships.
-          mv "dist/dsh-matlab-$version.tgz" dist/dsh-matlab.tgz
+          mv "dist/dsh-matlab-$version.tgz" dist/dsh-plugin-matlab.tgz
       - name: Create or update the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,12 +42,12 @@ jobs:
           # would publish bytes nobody verified (the two packers differ in tar
           # metadata). This job therefore fills a gap and never replaces bytes.
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            if gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | grep -qx dsh-matlab.tgz; then
-              echo "the release already carries dsh-matlab.tgz; leaving it alone"
+            if gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | grep -qx dsh-plugin-matlab.tgz; then
+              echo "the release already carries dsh-plugin-matlab.tgz; leaving it alone"
               exit 0
             fi
           else
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --latest \
               --notes "dsh-matlab $GITHUB_REF_NAME"
           fi
-          gh release upload "$GITHUB_REF_NAME" dist/dsh-matlab.tgz --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/dsh-plugin-matlab.tgz --clobber

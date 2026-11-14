@@ -53,7 +53,7 @@ shareMATLABSession()   % 让 DSH 接管你正在用的 MATLAB 会话
 ## 安装
 
 商店里点“安装”即可。条目指向本仓库 Release 上的预构建包
-`https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-matlab.tgz`，pnpm 只下载这一个约 100 KB 的 `.tgz`，不再克隆整个仓库、也不跑任何构建脚本。市场装好后会把 `matlab-agentic` 这一行挂进当前 composition，**通常不需要重启 DSH**：刷新页面就能在 **设置 → MATLAB** 看到这一页，`mcp__matlab__*` 工具与技能同时可用。
+`https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz`，pnpm 只下载这一个约 100 KB 的 `.tgz`，不再克隆整个仓库、也不跑任何构建脚本。市场装好后会把 `matlab-agentic` 这一行挂进当前 composition，**通常不需要重启 DSH**：刷新页面就能在 **设置 → MATLAB** 看到这一页，`mcp__matlab__*` 工具与技能同时可用。
 
 > 什么情况下才需要重启：市场提示“热挂载失败，重启后生效”（宿主没有可热挂载的 `include` 插件），或这一行已被 profile 自己的 `cordis.patch.yml` 接管。插件不要求在启动时准备任何东西——MATLAB MCP Server 二进制与工具包都在后台下载，不挡住激活，激活本身只做本地发现与挂载。
 
@@ -61,7 +61,7 @@ shareMATLABSession()   % 让 DSH 接管你正在用的 MATLAB 会话
 
 ```bash
 cd <profile 目录>          # 例如 ~/.dsh/profiles/desktop
-pnpm add https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-matlab.tgz
+pnpm add https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz
 ```
 
 包里的 `dsh.bundle` 与 `cordis.patch.yml` 会插入 `matlab-agentic` 这一行；包的 `files` 只含运行期文件（`lib`、`client`、`locale`、`icon.svg`、`cordis.patch.yml`），所以升级要替换的内容很少。
@@ -92,7 +92,7 @@ pnpm add file:/path/to/dsh-matlab
 
 ```yaml
 # profile 的 package.json
-"dependencies": { "dsh-matlab": "https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-matlab.tgz" }
+"dependencies": { "dsh-matlab": "https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz" }
 ```
 
 再 `pnpm install`，效果同上。
@@ -427,7 +427,7 @@ curl http://127.0.0.1:<port>/plugin/matlab/status
 | 改了设置但技能没变 | 看日志有没有 `settings applied`；若仍在 `provisioning`，等后台准备完成后会自动重挂 |
 | 安装时 pnpm 提示缺少 peer `@deepseek-ai/*` | 预期行为：这些包由 DSH 运行时的安装范围提供，不需要装进 profile |
 | 商店安装报“Windows 不允许替换正在被打开的文件”（点名 `dsh-matlab`） | pnpm 想整目录替换旧版本，而 Windows 拒绝改名手里有句柄的目录。插件包内没有原生模块、没有安装期脚本，运行的二进制与工具包都在 `$DSH_HOME/matlab`，所以被占用的是**旧包的目录**而不是本插件正在用的数据：完全退出 DSH（不是刷新页面）后重装一次即可；市场已把 `package.json` / `pnpm-lock.yaml` 恢复成操作前状态，失败不会把旧版本弄坏。新版走 Release 包安装，要替换的内容只有约 100 KB、几十个文件，撞上查毒/索引扫描的窗口也随之变小 |
-| 商店安装很慢或卡在下载 | 1.2.0 起商店装的是 Release 上的 `dsh-matlab.tgz`，不再克隆仓库；若仍然慢，看日志 `route probe: …` 一行，插件会先量一遍可用线路再下载。国内可把市场下载区域设为“中国区”，或把 `githubProxy` 写成多个前缀（逗号分隔），由插件挑最快的一条 |
+| 商店安装很慢或卡在下载 | 1.2.0 起商店装的是 Release 上的 `dsh-plugin-matlab.tgz`，不再克隆仓库；若仍然慢，看日志 `route probe: …` 一行，插件会先量一遍可用线路再下载。国内可把市场下载区域设为“中国区”，或把 `githubProxy` 写成多个前缀（逗号分隔），由插件挑最快的一条 |
 | 安装/升级后要重启吗 | 不需要。市场会热挂载 `matlab-agentic` 这一行，刷新页面即可；只有市场提示“热挂载失败，重启后生效”时才重启一次 |
 
 ## 开发
@@ -455,7 +455,7 @@ node scripts/release.mjs             # 打标签、推 origin+gitee、发 Releas
   - `lib/args.js` — 把设置翻译成 MATLAB MCP Server 官方参数（含 `existing` 模式的互斥规则）
   - `lib/probe.js` — 一次性 stdio MCP 握手
   - `lib/version.js` — 插件自身版本与包名的唯一来源（读 `package.json`）
-  - `scripts/release.mjs` — 测试 → `pnpm pack` → 校验包结构 → 打标签 → 推两个远端 → 建 Release 并上传 `dsh-matlab.tgz` → 回读 `latest/download` 确认可下载
+  - `scripts/release.mjs` — 测试 → `pnpm pack` → 校验包结构 → 打标签 → 推两个远端 → 建 Release 并上传 `dsh-plugin-matlab.tgz` → 回读 `latest/download` 确认可下载
 
 ## 许可
 

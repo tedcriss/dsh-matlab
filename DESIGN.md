@@ -255,7 +255,7 @@ DSH 的 `@deepseek-ai/dsh-mcp-client` 把 `{ name: "dsh-mcp-client", version: "0
 商店里的 `url:` 是仓库，市场会先把仓库当成 `github:` 源：pnpm 解析 ref、下载整个仓库的 codeload 包、再按源安装——慢的是这几步，出错的也是这几步。1.2.0 起条目改写 `tarball:`：
 
 ```yaml
-tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-matlab.tgz
+tarball: https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz
 ```
 
 市场的 `installTargetFor` 对带 `tarball` 的条目直接 `pnpm add <that URL>`，于是安装变成“一个约 100 KB 的 `.tgz`”，且这个 URL 形态（`releases/latest/download/<不含版本号的文件名>`）正好是市场自己识别“可随 Release 更新”的那一种：它会去 `raw.githubusercontent.com/<repo>/<tag>/package.json` 核对版本，再把下一次安装指到 `releases/download/<tag>/<同一个文件名>`。所以资产名必须**不带版本号**，否则 `latest/download` 在下一个 Release 就 404——这既是商店规范，也是更新的前提。

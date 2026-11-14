@@ -3,7 +3,7 @@
  * Publish one release of this plugin.
  *
  * The store installs the plugin from a prebuilt tarball attached to a GitHub
- * Release (`releases/latest/download/dsh-matlab.tgz`), not from the
+ * Release (`releases/latest/download/dsh-plugin-matlab.tgz`), not from the
  * repository source. That makes the asset part of the release, not an optional
  * extra: a tag without it points the store at a 404. So one command does the
  * whole thing — test, pack, verify the archive's shape, tag, push to both
@@ -36,14 +36,14 @@ const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 /** Where the packed `package/` tarball is written. */
 const DIST = join(ROOT, 'dist')
 /** The asset name the store entry points at; it must carry no version. */
-const ASSET = 'dsh-matlab.tgz'
+const ASSET = 'dsh-plugin-matlab.tgz'
 /** Files a store install cannot work without. */
 const REQUIRED = ['package/package.json', 'package/lib/index.js', 'package/client/client.js', 'package/cordis.patch.yml']
 /** A package this close to 60 KB is not this plugin; a bigger one means the trim regressed. */
 const MAX_TARBALL_BYTES = 512 * 1024
 
 /** The floating URL a market entry uses; version-free by contract. */
-export const TARBALL_URL = 'https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-matlab.tgz'
+export const TARBALL_URL = 'https://github.com/tedcriss/dsh-matlab/releases/latest/download/dsh-plugin-matlab.tgz'
 
 /**
  * Run one command, inheriting stdio so progress and failures are visible.
