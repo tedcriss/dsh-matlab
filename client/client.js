@@ -1,15 +1,28 @@
 /**
- * The plugin's Web UI: a Settings page and the dependency progress dialog.
+ * The plugin's Web UI: one Settings page and the dependency toast.
  *
- * Both render as React into slots the shell already allocates:
- * `settings.section` (one page in Settings) and `shell.overlay` (the frame-wide
- * floating layer). All data comes from the plugin's own JSON routes, so this
- * file carries no policy: it shows what the Host resolved, posts field edits
- * through DSH's `settings` service, and asks the Host to fetch what is missing.
+ * The page renders in two entries that the shell already allocates — the
+ * Settings panel (`settings.section`) and a bundle's own page in the Plugin
+ * Manager (`plugins.bundle.config`) — from this one component, so both entries
+ * show the same form and write the same configuration. `view` is the only
+ * difference the page makes: a section draws its own title and one-liner
+ * (the shell owns neither for it), while a bundle page is already titled and
+ * described by the Plugin Manager, so the page starts at the status line.
  *
- * Styling uses the host's `--dsw-alias-*` theme tokens only, and every control
- * is written here rather than imported from a client package, so a host upgrade
- * cannot blank the page.
+ * All data comes from the plugin's own JSON routes, so this file carries no
+ * policy: it shows what the Host resolved, posts field edits through DSH's
+ * `settings` service, and asks the Host to fetch what is missing.
+ *
+ * Styling follows the harness's settings surface rather than inventing a look:
+ * flat groups under one title, fields as a label over its control, hairlines
+ * between fields instead of cards, the settings-panel fill for read-only
+ * panels, a 36px switch and a segmented control for short enums. The controls
+ * are written here instead of imported from a client package — a host package
+ * changes without notice and a throwing component would blank the slot entry —
+ * but their markup, metrics and behavior are copied from the primitives'
+ * `src/*.tsx` and `*.module.css`, renamed under the `mp-` prefix, and every
+ * color resolves through a `--dsw-alias-*` token (with a literal fallback for
+ * the tokens outside the documented alias set) so both themes are covered.
  *
  * @module dsh-matlab/client
  */
@@ -28,106 +41,87 @@ window.__ModuleLoader__.load({
       zh: {
         nav: 'MATLAB',
         title: 'MATLAB 智能体工具包',
-        subtitle: 'MathWorks 原样的 MCP 工具与技能目录，由 DSH 挂载。',
-        status: '连接状态',
-        phase: '阶段',
-        matlab: 'MATLAB',
-        server: 'MCP Server',
-        pluginVersion: '插件版本',
-        route: '下载线路',
-        tools: '工具',
-        resources: '资源',
-        skills: '技能',
-        groups: '技能组',
-        warnings: '告警',
-        error: '错误',
-        none: '无',
-        notDetected: '未检测到',
+        intro: 'MathWorks 的 MCP 工具与技能目录，由 DSH 挂载。',
         refresh: '刷新',
         save: '保存',
-        revert: '放弃修改',
         saving: '正在保存…',
         saved: '已保存',
-        conflict: '设置已被其他窗口修改，已重新载入。',
-        editableUnavailable: '当前 profile 没有 settings 服务，请直接在 cordis.patch.yml 中修改。',
+        invalidNumber: '请填写有效的毫秒数',
+        noGroupSelected: '至少保留一个技能组',
+        revert: '放弃修改',
+        loading: '正在载入…',
+        readOnly: '当前 profile 没有 settings 服务：字段只读。',
+        unknown: '—',
+        notDetected: '未检测到',
+        none: '无',
+        tools: '工具',
+        resources: '资源',
+        error: '错误',
+        phaseStarting: '正在启动',
+        phaseSkills: '正在读取技能',
+        phaseProvisioning: '正在准备依赖',
+        phaseTools: '正在连接工具',
+        phaseReady: '已就绪',
+        phaseFailed: '失败',
+        dependenciesTitle: '依赖',
+        artifactColumn: '依赖项',
+        localTagColumn: '本地',
+        latestTagColumn: '最新',
+        unknownTag: '未知',
+        notChecked: '未检查',
+        notInstalled: '未安装',
+        toolkitLabel: 'Agentic Toolkit',
+        checkUpdates: '检查更新',
+        checking: '正在检查…',
+        downloadLatest: '下载最新依赖',
+        downloadBlocked: '本地已是最新；先检查更新，确认有更新后才可下载',
+        downloading: '正在下载…',
+        downloadBusy: '已有下载在进行，完成后再试',
+        removeLocal: '清空本地依赖',
+        removing: '正在清空…',
+        removed: '已清空本地依赖',
+        upToDate: '已是最新',
+        updateAvailable: '有可用更新',
+        checkFailed: '检查失败',
+        confirmRemoveTitle: '清空本地依赖？',
+        confirmRemoveBody: '将删除插件已下载的 MATLAB MCP Server 与 Agentic Toolkit（$DSH_HOME/matlab 下由本插件安装的文件），不会动你的 MATLAB 安装、mcpServerPath 或 toolkitRoots 指向的目录。删除后 MATLAB 工具与技能会不可用，需要重新下载。',
+        cancel: '取消',
+        confirmRemoveConfirm: '确认删除',
         groupsTitle: '技能组',
-        groupsHint: '开关决定模型能看到哪些 MATLAB 技能。默认全开；全部勾选时保存为“全部”，新增的组也会自动纳入。标记“必需”的组始终启用，不能关闭。',
-        groupColumn: '技能组',
-        skillsColumn: '技能数',
         selectAll: '全选',
-        selectNone: '全不选',
+        selectNone: '清空',
         required: '必需',
-        skillsUnit: '个技能',
-        noToolkit: '还没有找到 MATLAB 技能目录。装一次依赖后这里会列出技能组。',
+        skillsUnit: '项',
+        noToolkit: '还没有找到 MATLAB 技能目录。',
         matlabTitle: 'MATLAB',
-        matlabRoot: 'MATLAB 根目录',
-        matlabRootHint: '留空则按 安装器记录 → 环境变量 → PATH → 注册表 → 安装目录 自动发现。',
+        matlabRoot: '根目录',
         displayMode: '启动方式',
         desktop: '带桌面',
         nodesktop: '无桌面',
         sessionMode: '会话模式',
-        auto: '自动（优先复用共享会话）',
-        existing: '只复用共享会话',
-        newSession: '总是新开',
+        auto: '自动',
+        existing: '复用会话',
+        newSession: '新开会话',
         initialWorkingFolder: '起始目录',
-        initialWorkingFolderHint: '留空则使用 DSH 当前工作目录。',
-        workspaceFolder: '使用当前对话的工作区目录作为起始目录',
-        workspaceFolderHint: '勾选后忽略上面的起始目录：每次调用 MATLAB（evaluate_matlab_code）时，把该对话当前选择的工作区（项目）目录作为 MATLAB 的当前文件夹。同一时刻只有一个 MATLAB 会话，所以两个对话同时调用时以最后一次调用为准。',
+        workspaceFolder: '使用当前对话的工作区目录',
         initialize: '启动时拉起 MATLAB',
-        initializeHint: '关闭时 MCP Server 在第一次工具调用时才启动 MATLAB。',
         telemetry: '禁用遥测',
-        telemetryHint: '向 MCP Server 传 --disable-telemetry。',
         serverTitle: 'MCP Server',
-        mcpServerPath: '可执行文件路径',
-        mcpServerPathHint: '留空则自动发现（安装器布局、插件数据目录）或按下方线路下载。',
+        mcpServerPath: '可执行文件',
         serverName: '工具命名空间',
-        serverNameHint: '工具会显示为 mcp__<命名空间>__<工具>。',
-        agentName: 'MATLAB 中显示的 Agent 名',
-        agentNameHint: 'MATLAB 命令窗口里显示的名字，例如“… is connected to MATLAB…”。默认 DeepSeek。',
-        callTimeout: '单次调用超时（毫秒）',
-        callTimeoutHint: '仿真与测试套件很慢，默认 10 分钟。',
-        networkTitle: '依赖下载',
+        agentName: 'Agent 名称',
+        callTimeout: '调用超时（ms）',
+        downloadTitle: '下载',
         githubProxy: 'GitHub 加速前缀',
-        githubProxyHint: '例如 https://gh-proxy.com。留空则沿用 DSH 市场的 GitHub 加速设置。',
         region: '下载区域',
-        regionAuto: '跟随 DSH 市场',
-        regionChina: '中国区（内置加速线路）',
+        regionAuto: '跟随市场',
+        regionChina: '中国区',
         regionGlobal: '直连',
         routes: '当前线路',
-        timeout: '单次准备预算（毫秒）',
-        timeoutHint: '下载二进制或安装工具包的总预算；只约束后台任务。',
-        wait: '启动最多等待（毫秒）',
-        waitHint: '0 表示首次准备完全在后台进行，不阻塞启动；最大不超过 60000。',
+        timeout: '准备预算（ms）',
+        wait: '启动等待（ms）',
         watch: '监视工具包变化',
-        watchHint: '工具包更新后自动重载技能目录。',
-        dependenciesTitle: '依赖',
-        dependenciesHint: '进入本页时已读取本地依赖与版本；点“检查更新”读取官方最新 Tag。只有在本地缺失依赖、或检查后发现更新时，才能下载最新依赖。',
-        artifactColumn: '模块',
-        localTagColumn: '本地 Tag',
-        latestTagColumn: '最新 Tag',
-        unknownTag: '未知',
-        notChecked: '未检查',
-        checkUpdates: '检查更新',
-        downloadLatest: '下载最新依赖',
-        downloadBlocked: '本地已是最新；先检查更新，确认有更新后才可下载',
-        downloading: '正在下载…',
-        removeLocal: '清空本地依赖',
-        removing: '正在清空…',
-        removed: '本地依赖已清空',
-        downloadBusy: '已有下载在进行，完成后再试',
-        removeBusy: '有下载正在进行，完成后再清空',
-        confirmRemoveTitle: '清空本地依赖？',
-        confirmRemoveBody: '将删除插件已下载的 MATLAB MCP Server 与 Agentic Toolkit（$DSH_HOME/matlab 下由本插件安装的文件），不会动你的 MATLAB 安装、mcpServerPath 或 toolkitRoots 指向的目录。删除后 MATLAB 工具与技能会不可用，需要重新下载。',
-        confirmRemoveCancel: '取消',
-        confirmRemoveConfirm: '确认删除',
-        checking: '正在检查…',
-        upToDate: '已是最新',
-        checkFailed: '检查失败，原因见上方',
-        updateAvailable: '有可用更新',
-        notInstalled: '未安装',
-        toolkitLabel: '工具包',
         updateKindTitle: '正在更新 MATLAB 依赖',
-        retry: '重试',
         progressTitle: '正在准备 MATLAB 依赖',
         progressToolkit: '正在下载 MATLAB Agentic Toolkit 发布包…',
         progressDownload: '正在下载 MATLAB MCP Server…',
@@ -137,112 +131,92 @@ window.__ModuleLoader__.load({
         progressRoute: '线路',
         progressHide: '后台继续',
         progressRetry: '重试',
-        elapsed: '已用',
         seconds: '秒',
       },
       en: {
         nav: 'MATLAB',
         title: 'MATLAB Agentic Toolkit',
-        subtitle: "MathWorks' own MCP tools and skill catalog, mounted by DSH.",
-        status: 'Connection',
-        phase: 'Phase',
-        matlab: 'MATLAB',
-        server: 'MCP Server',
-        pluginVersion: 'Plugin version',
-        route: 'Route',
-        tools: 'Tools',
-        resources: 'Resources',
-        skills: 'Skills',
-        groups: 'Skill groups',
-        warnings: 'Warnings',
-        error: 'Error',
-        none: 'none',
-        notDetected: 'not detected',
+        intro: "MathWorks' own MCP tools and skill catalog, mounted by DSH.",
         refresh: 'Refresh',
         save: 'Save',
-        revert: 'Discard',
         saving: 'Saving…',
         saved: 'Saved',
-        conflict: 'Another window changed these settings; the page reloaded them.',
-        editableUnavailable: 'This profile has no settings service; edit cordis.patch.yml instead.',
-        groupsTitle: 'Skill groups',
-        groupsHint: 'Switches decide which MATLAB skills the model can see. All groups are on by default; saving with every group checked stores "all", so new groups join automatically. A group marked "required" is always on and cannot be turned off.',
-        groupColumn: 'Skill group',
-        skillsColumn: 'Skills',
-        selectAll: 'Select all',
-        selectNone: 'Select none',
-        required: 'required',
-        skillsUnit: 'skills',
-        noToolkit: 'No MATLAB skill catalog yet. Installing the dependencies once will list the groups here.',
-        matlabTitle: 'MATLAB',
-        matlabRoot: 'MATLAB root',
-        matlabRootHint: 'Empty discovers it: installer record → environment → PATH → registry → install folders.',
-        displayMode: 'Start mode',
-        desktop: 'With desktop',
-        nodesktop: 'No desktop',
-        sessionMode: 'Session mode',
-        auto: 'Auto (prefer a shared session)',
-        existing: 'Shared session only',
-        newSession: 'Always start a new one',
-        initialWorkingFolder: 'Working folder',
-        initialWorkingFolderHint: 'Empty uses the DSH working directory.',
-        workspaceFolder: "Use the conversation's workspace folder",
-        workspaceFolderHint: "When on, the folder above is ignored: each MATLAB call (evaluate_matlab_code) runs with the folder this conversation has selected. One MATLAB session has one current folder, so concurrent conversations resolve to the last caller.",
-        initialize: 'Start MATLAB at startup',
-        initializeHint: 'Off starts MATLAB on the first tool call instead.',
-        telemetry: 'Disable telemetry',
-        telemetryHint: 'Passes --disable-telemetry to the MCP server.',
-        serverTitle: 'MCP Server',
-        mcpServerPath: 'Executable path',
-        mcpServerPathHint: 'Empty discovers it (installer layout, plugin data) or downloads it over the routes below.',
-        serverName: 'Tool namespace',
-        serverNameHint: 'Tools appear as mcp__<namespace>__<tool>.',
-        agentName: 'Agent name shown in MATLAB',
-        agentNameHint: 'The name MATLAB prints when the agent connects. Defaults to DeepSeek.',
-        callTimeout: 'Call timeout (ms)',
-        callTimeoutHint: 'Simulations and test suites are slow; 10 minutes by default.',
-        networkTitle: 'Dependency downloads',
-        githubProxy: 'GitHub acceleration prefix',
-        githubProxyHint: 'For example https://gh-proxy.com. Empty follows the GitHub acceleration DSH is configured with.',
-        region: 'Download region',
-        regionAuto: "Follow DSH's market",
-        regionChina: 'China (built-in accelerated routes)',
-        regionGlobal: 'Direct',
-        routes: 'Routes in force',
-        timeout: 'Transfer budget (ms)',
-        timeoutHint: 'Budget for one binary download or toolkit install; it bounds the background job only.',
-        wait: 'Startup wait (ms)',
-        waitHint: '0 keeps the first fetch entirely in the background; 60000 is the useful maximum.',
-        watch: 'Watch the toolkit',
-        watchHint: 'Reload the skill catalog when the toolkit changes on disk.',
+        invalidNumber: 'Enter a valid number of milliseconds',
+        noGroupSelected: 'Keep at least one skill group',
+        revert: 'Discard',
+        loading: 'Loading…',
+        readOnly: 'This profile has no settings service; the fields are read-only.',
+        unknown: '—',
+        notDetected: 'not detected',
+        none: 'none',
+        tools: 'Tools',
+        resources: 'Resources',
+        error: 'Error',
+        phaseStarting: 'Starting',
+        phaseSkills: 'Reading skills',
+        phaseProvisioning: 'Preparing dependencies',
+        phaseTools: 'Connecting tools',
+        phaseReady: 'Ready',
+        phaseFailed: 'Failed',
         dependenciesTitle: 'Dependencies',
-        dependenciesHint: 'Entering this page already read the local artifacts and their versions; "Check for updates" reads the newest published tags. Downloading is offered only when something is missing or the check found a newer tag.',
         artifactColumn: 'Artifact',
-        localTagColumn: 'Local tag',
-        latestTagColumn: 'Latest tag',
+        localTagColumn: 'Local',
+        latestTagColumn: 'Latest',
         unknownTag: 'unknown',
         notChecked: 'not checked',
+        notInstalled: 'not installed',
+        toolkitLabel: 'Agentic Toolkit',
         checkUpdates: 'Check for updates',
+        checking: 'Checking…',
         downloadLatest: 'Download the newest',
         downloadBlocked: 'Everything local is current; run a check first, then download once it reports an update',
         downloading: 'Downloading…',
+        downloadBusy: 'A download is already running; try again when it finishes',
         removeLocal: 'Delete local dependencies',
         removing: 'Deleting…',
         removed: 'The local dependencies were deleted',
-        downloadBusy: 'A download is already running; try again when it finishes',
-        removeBusy: 'A download is running; delete when it finishes',
+        upToDate: 'Up to date',
+        updateAvailable: 'Update available',
+        checkFailed: 'Check failed',
         confirmRemoveTitle: 'Delete the local dependencies?',
         confirmRemoveBody: 'This deletes the MATLAB MCP Server and Agentic Toolkit copies this plugin downloaded under $DSH_HOME/matlab. Your MATLAB installation, mcpServerPath, and toolkitRoots folders are untouched. MATLAB tools and skills stop working until they are downloaded again.',
-        confirmRemoveCancel: 'Cancel',
+        cancel: 'Cancel',
         confirmRemoveConfirm: 'Delete',
-        checking: 'Checking…',
-        upToDate: 'Up to date',
-        checkFailed: 'Check failed; see the reason above',
-        updateAvailable: 'Update available',
-        notInstalled: 'not installed',
-        toolkitLabel: 'Toolkit',
+        groupsTitle: 'Skill groups',
+        selectAll: 'Select all',
+        selectNone: 'Clear',
+        required: 'required',
+        skillsUnit: 'skills',
+        noToolkit: 'No MATLAB skill catalog yet.',
+        matlabTitle: 'MATLAB',
+        matlabRoot: 'Root folder',
+        displayMode: 'Start mode',
+        desktop: 'With desktop',
+        nodesktop: 'No desktop',
+        sessionMode: 'Session',
+        auto: 'Auto',
+        existing: 'Shared only',
+        newSession: 'New each time',
+        initialWorkingFolder: 'Starting folder',
+        workspaceFolder: "Use the conversation's workspace folder",
+        initialize: 'Start MATLAB at startup',
+        telemetry: 'Disable telemetry',
+        serverTitle: 'MCP Server',
+        mcpServerPath: 'Executable path',
+        serverName: 'Tool namespace',
+        agentName: 'Agent name',
+        callTimeout: 'Call timeout (ms)',
+        downloadTitle: 'Downloads',
+        githubProxy: 'GitHub acceleration prefix',
+        region: 'Download region',
+        regionAuto: 'Follow market',
+        regionChina: 'China',
+        regionGlobal: 'Direct',
+        routes: 'Active routes',
+        timeout: 'Download budget (ms)',
+        wait: 'Startup wait (ms)',
+        watch: 'Watch the toolkit',
         updateKindTitle: 'Updating MATLAB dependencies',
-        retry: 'Retry',
         progressTitle: 'Preparing MATLAB dependencies',
         progressToolkit: 'Downloading the MATLAB Agentic Toolkit release…',
         progressDownload: 'Downloading the MATLAB MCP Server…',
@@ -252,7 +226,6 @@ window.__ModuleLoader__.load({
         progressRoute: 'Route',
         progressHide: 'Keep in background',
         progressRetry: 'Retry',
-        elapsed: 'elapsed',
         seconds: 's',
       },
     }
@@ -319,7 +292,9 @@ window.__ModuleLoader__.load({
         body: JSON.stringify(body ?? {}),
       })
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`)
+      // A refusal names its cause either as `error` or as `reason`; neither
+      // should reach the page as a bare status code.
+      if (!response.ok) throw new Error(payload.error ?? payload.reason ?? `HTTP ${response.status}`)
       return payload
     }
 
@@ -328,168 +303,340 @@ window.__ModuleLoader__.load({
       return `${(bytes / 1048576).toFixed(1)} MB`
     }
 
+    /** The last segment of a path, for a status line that has no room for the whole path. */
+    function tailOf(path) {
+      if (typeof path !== 'string' || path === '') return undefined
+      const parts = path.split(/[\\/]+/u).filter(part => part !== '')
+      return parts.length === 0 ? path : parts[parts.length - 1]
+    }
+
     const STYLES = `
-.mp-page{display:flex;flex-direction:column;gap:18px;max-width:760px;padding:4px 2px 0;color:var(--dsw-alias-label-primary)}
-/* The settings scroller keeps a 24px bottom padding and sticky aligns to its
-   content edge, so the bar is pushed down by that padding and paints a matching
-   solid shadow below it — otherwise the page shows through under the bar. Both
-   values degrade quietly if the host changes its padding. */
-.mp-savebar{position:sticky;bottom:-24px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px;padding:12px 0 14px;background:var(--dsw-alias-bg-base);border-top:1px solid var(--dsw-alias-border-l1);box-shadow:0 -12px 20px -20px rgba(0,0,0,.45),0 40px 0 0 var(--dsw-alias-bg-base)}
-.mp-card{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
-.mp-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.mp-card-title{font-size:14px;font-weight:600;margin:0}
-.mp-hint{font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary);margin:0}
-.mp-row{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:10px 16px;align-items:center}
-.mp-row-block{display:flex;flex-direction:column;gap:6px}
-.mp-label{font-size:13px;color:var(--dsw-alias-label-primary)}
-.mp-input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
-.mp-input::placeholder{color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));opacity:.72}
-.mp-input:focus::placeholder{opacity:.5}
-.mp-radio-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 20px;padding:3px 0}
-.mp-radio{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--dsw-alias-label-primary);cursor:pointer;padding:3px 2px;border-radius:6px}
-.mp-radio:hover{color:var(--dsw-alias-brand-primary)}
-.mp-radio input{margin:0;cursor:pointer;accent-color:var(--dsw-alias-brand-primary)}
-.mp-radio input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.mp-input:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.mp-toggle{display:flex;align-items:flex-start;gap:8px;font-size:13px}
-.mp-toggle input{margin:3px 0 0}
-.mp-btn{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);cursor:pointer}
-.mp-btn:hover:not(:disabled){border-color:var(--dsw-alias-brand-primary)}
-.mp-btn:disabled{opacity:.5;cursor:default}
-.mp-btn-primary{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:#fff}
-.mp-btn-danger{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
-.mp-btn-danger:hover:not(:disabled){background:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary);color:#fff}
-.mp-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.mp-badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);white-space:nowrap}
-.mp-badge-success{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
-.mp-badge-warn{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}
-.mp-badge-error{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
-.mp-kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;font-size:12px}
-.mp-kv dt{color:var(--dsw-alias-label-secondary)}
-.mp-kv dd{margin:0;overflow-wrap:anywhere}
-.mp-groups-wrap{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden}
-.mp-groups-head,.mp-group{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:12px;align-items:center;padding:6px 12px}
-.mp-groups-head{font-size:11px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l1)}
-.mp-groups-head span:last-child{text-align:right}
-.mp-groups{max-height:320px;overflow-y:auto;overscroll-behavior:contain}
-.mp-group{margin:0;font-size:13px;cursor:pointer;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mp-page{--mp-canvas:var(--dsw-alias-bg-base);--mp-bleed:0px;display:flex;flex-direction:column;gap:28px;box-sizing:border-box;width:100%;max-width:720px;color:var(--dsw-alias-label-primary)}
+.mp-page[data-view='section']{--mp-canvas:var(--dsw-alias-bg-layer-2);--mp-bleed:24px}
+/* The bundle page is a 960px column of the plugin page: the form fills it, so
+   its hairlines line up with the sections the host draws above. */
+.mp-page[data-view='page']{max-width:100%}
+@media (max-width:767px){.mp-page[data-view='section']{--mp-bleed:16px}}
+.mp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+/* Head: the section owns its title, the bundle page is titled by its host. */
+.mp-top{display:flex;flex-direction:column;gap:12px}
+.mp-head{display:flex;flex-direction:column;gap:6px}
+.mp-head-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.mp-title{margin:0;font-size:16px;line-height:24px;font-weight:500}
+.mp-intro{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
+
+/* Status: a dot and the phase, then the resolved facts, with refresh at the end. */
+.mp-status{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;min-height:28px}
+.mp-status-main{display:inline-flex;align-items:center;gap:8px;font-size:13px;line-height:20px;font-weight:500}
+.mp-status-facts{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.mp-fact{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.mp-fact + .mp-fact::before{content:'\\00b7';margin-right:2px;color:var(--dsw-alias-label-tertiary)}
+.mp-fact-value{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mp-status-end{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+.mp-dot{box-sizing:border-box;flex:none;width:8px;height:8px;border-radius:50%;background:var(--dsw-alias-state-idle-primary)}
+.mp-dot[data-tone='success']{background:var(--dsw-alias-state-success-primary)}
+.mp-dot[data-tone='warn']{background:var(--dsw-alias-state-warn-primary)}
+.mp-dot[data-tone='error']{background:var(--dsw-alias-state-error-primary)}
+.mp-dot[data-tone='busy']{background:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));animation:mp-pulse 1.2s ease-in-out infinite}
+@keyframes mp-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.mp-error{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
+.mp-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
+
+/* One group of settings: a heading row, then fields separated by hairlines. */
+.mp-section{display:flex;flex-direction:column;gap:4px;min-width:0}
+.mp-section-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:28px}
+.mp-section-title{margin:0;font-size:14px;line-height:20px;font-weight:500}
+.mp-section-meta{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
+.mp-section-actions{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;margin-left:auto;min-width:0}
+.mp-field{display:flex;flex-direction:column;gap:6px;padding:12px 0}
+.mp-field + .mp-field,.mp-field + .mp-row,.mp-row + .mp-field,.mp-row + .mp-row{border-top:0.5px solid var(--dsw-alias-border-l2)}
+.mp-field-row{flex-direction:row;align-items:center;justify-content:space-between;gap:16px}
+.mp-label{font-size:13px;line-height:1.5;font-weight:500;color:var(--dsw-alias-label-primary)}
+.mp-value{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.mp-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;min-height:22px}
+
+/* Inputs: the harness's 34px settings field. */
+.mp-input{box-sizing:border-box;width:100%;height:34px;padding:0 12px;border:0.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));border-radius:var(--dsw-radius-md,12px);background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1));font:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.mp-input::placeholder{color:var(--dsw-alias-label-dimmed,var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary)))}
+.mp-input:focus{outline:none;border-color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}
+.mp-input:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
+.mp-input[aria-invalid='true']{border-color:var(--dsw-alias-state-error-primary)}
+
+/* Segmented control: the harness's own short-enum control, two to three choices. */
+.mp-seg{position:relative;display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;max-width:100%;padding:4px;border-radius:var(--dsw-radius-md,12px);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12))}
+.mp-seg-indicator{position:absolute;top:4px;left:4px;width:calc((100% - 8px - 2px * (var(--mp-seg-count) - 1)) / var(--mp-seg-count));height:calc(100% - 8px);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1);box-shadow:var(--dsw-elevation-soft,0 1px 2px rgba(0,0,0,.08));transform:translateX(calc(var(--mp-seg-index) * (100% + 2px)));transition:transform 160ms ease;pointer-events:none}
+.mp-seg-tab{position:relative;z-index:1;height:28px;padding:0 16px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;font-weight:500;white-space:nowrap;cursor:pointer;transition:color 120ms ease}
+.mp-seg-tab[aria-checked='true']{color:var(--dsw-alias-label-primary)}
+.mp-seg-tab:disabled{cursor:default;opacity:.4}
+.mp-seg-tab:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)));outline-offset:-2px}
+
+/* Switch: the harness's 36x20 capsule; the thumb moves on aria-checked. */
+.mp-switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:36px;height:20px;padding:2px;border:0;border-radius:999px;corner-shape:round;background:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));cursor:pointer}
+.mp-switch[aria-checked='true']{background:var(--dsw-alias-brand-primary)}
+.mp-switch:disabled{cursor:default;opacity:.5}
+.mp-switch:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)));outline-offset:2px}
+.mp-switch-thumb{display:block;width:16px;height:16px;border-radius:50%;corner-shape:round;background:var(--dsw-alias-label-primary-foreground,#fff);transition:transform 120ms ease}
+.mp-switch[aria-checked='false'] .mp-switch-thumb{background:var(--dsw-alias-switch-thumb,#fff)}
+.mp-switch[aria-checked='true'] .mp-switch-thumb{transform:translateX(16px)}
+
+/* Buttons: ghost, outline, primary and a red ghost, at the two harness sizes. */
+.mp-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;padding:0 10px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px;white-space:nowrap;cursor:pointer}
+.mp-btn:disabled{opacity:.4;cursor:default}
+.mp-btn:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)));outline-offset:1px}
+.mp-btn-lg{height:32px;padding:0 14px;border-radius:var(--dsw-radius-md,12px);font-size:13px;line-height:20px}
+.mp-btn-primary{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary));color:var(--dsw-alias-label-primary-foreground,#fff)}
+@media (hover:hover){.mp-btn-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover,var(--dsw-alias-brand-primary))}.mp-btn-ghost:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}.mp-btn-outline:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}}
+.mp-btn-outline{box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l3,var(--dsw-alias-border-l2))}
+.mp-btn-danger{color:var(--dsw-alias-state-error-primary);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--dsw-alias-state-error-primary) 30%,transparent)}
+@media (hover:hover){.mp-btn-danger:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent)}.mp-btn-danger-solid:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 85%,#000)}}
+.mp-btn-danger-solid{background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-label-primary-foreground,#fff)}
+
+/* Tags: read-only capsules, one palette per meaning. */
+.mp-tag{display:inline-flex;align-items:center;border-radius:999px;corner-shape:round;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap}
+.mp-tag[data-tone='outline']{border:0.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));color:var(--dsw-alias-label-tertiary)}
+.mp-tag[data-tone='neutral']{background:var(--dsw-alias-bg-module-platform,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary)}
+.mp-tag[data-tone='success']{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent);color:var(--dsw-alias-state-success-primary)}
+.mp-tag[data-tone='info']{background:color-mix(in srgb,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)) 10%,transparent);color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}
+.mp-tag[data-tone='warn']{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 12%,transparent);color:var(--dsw-alias-state-warn-primary)}
+.mp-tag[data-tone='danger']{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent);color:var(--dsw-alias-state-error-primary)}
+
+/* Dependencies: three columns on the page ground, one ruled row per artifact.
+   The tag columns shrink-wrap and the name takes the rest, so a long server
+   version line cannot widen the table past its section. */
+.mp-table{width:100%;border-collapse:collapse;table-layout:auto}
+.mp-table th,.mp-table td{padding:9px 0;border-bottom:0.5px solid var(--dsw-alias-border-l2);text-align:start;vertical-align:middle;font-weight:400}
+.mp-table th:not(:first-child),.mp-table td:not(:first-child){padding-left:12px;white-space:nowrap;width:1%}
+.mp-table thead th{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}
+.mp-table tbody tr:last-child th,.mp-table tbody tr:last-child td{border-bottom:0}
+.mp-table tbody th{font-size:13px;line-height:20px;font-weight:400;color:var(--dsw-alias-label-primary)}
+.mp-table td{font-size:13px;line-height:20px}
+.mp-table-name{min-width:0;overflow-wrap:anywhere;text-align:start}
+.mp-mono{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:12px;line-height:18px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mp-idle{color:var(--dsw-alias-label-tertiary);font-family:inherit}
+.mp-progress{display:flex;flex-direction:column;gap:6px;padding:2px 0 6px}
+.mp-progress-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:12px;line-height:18px}
+.mp-progress-stage{color:var(--dsw-alias-label-secondary)}
+.mp-progress-meta{margin:0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px;font-variant-numeric:tabular-nums}
+
+/* Skill groups: the scroll region inside a module panel, one row per group. */
+.mp-panel{border-radius:var(--dsw-radius-lg,16px);background:var(--dsw-alias-bg-module-platform,var(--dsw-alias-bg-layer-2));padding:0 16px}
+.mp-list{display:flex;flex-direction:column;margin:0;padding:0;max-height:320px;overflow-y:auto;overscroll-behavior:contain;list-style:none;scrollbar-width:thin}
+.mp-list:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)));outline-offset:2px}
+.mp-group{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--dsw-alias-border-l2);font-size:13px;line-height:20px;cursor:pointer}
 .mp-group:last-child{border-bottom:0}
-.mp-group:hover{background:var(--dsw-alias-bg-layer-2)}
-.mp-group-required{cursor:default}
-.mp-group-required:hover{background:transparent}
-.mp-group-check{display:flex;align-items:center;gap:8px;min-width:0}
-.mp-group input{margin:0;flex:none}
-.mp-group-name{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;overflow-wrap:anywhere}
-.mp-group-count{font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;text-align:right}
-.mp-error{font-size:12px;color:var(--dsw-alias-state-error-primary);margin:0;overflow-wrap:anywhere}
-.mp-note{font-size:12px;color:var(--dsw-alias-label-secondary);margin:0}
-.mp-tags{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden}
-.mp-tags-row{display:grid;grid-template-columns:minmax(96px,1fr) minmax(0,1.1fr) minmax(0,1.1fr) max-content;gap:12px;align-items:center;padding:7px 12px;font-size:13px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.mp-tags-row:last-child{border-bottom:0}
-.mp-tags-head{font-size:11px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
-.mp-tags-name{min-width:0;overflow-wrap:anywhere}
-.mp-tags-tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;min-width:0;overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
-.mp-tags-tag-idle{color:var(--dsw-alias-label-secondary);font-family:inherit}
-.mp-tags-error{grid-column:1 / -1}
-.mp-modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,17,20,.45)}
-.mp-modal-card{width:min(460px,100%);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 20px 56px rgba(0,0,0,.28);padding:18px 20px;display:flex;flex-direction:column;gap:12px}
-.mp-modal-title{font-size:14px;font-weight:600;margin:0}
-.mp-toast{position:fixed;right:20px;bottom:20px;width:320px;max-width:calc(100vw - 40px);box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
-.mp-toast-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:600}
-.mp-toast-close{border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
-.mp-bar{height:6px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
+.mp-group:hover{color:var(--dsw-alias-label-primary)}
+.mp-group:has(input:disabled){cursor:default;opacity:.6}
+.mp-group input{flex:none;width:16px;height:16px;margin:0;accent-color:var(--dsw-alias-brand-primary);cursor:inherit}
+.mp-group input:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)));outline-offset:2px}
+.mp-group-name{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
+.mp-group-count{flex:none;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
+.mp-empty{margin:0;padding:12px 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}
+
+/* The save row sticks to the bottom of whichever column scrolls.
+   The settings panel pads its content column 24px, so the row bleeds over that
+   padding and paints the same strip below itself. On the bundle page the
+   plugin page owns the column's inset and the row keeps its own box, so the
+   bleed is 0 and nothing is painted past it. */
+.mp-footer{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:12px;margin:0 calc(-1 * var(--mp-bleed));padding:12px var(--mp-bleed);background:var(--mp-canvas);border-top:0.5px solid var(--dsw-alias-border-l2);box-shadow:0 var(--mp-bleed) 0 0 var(--mp-canvas)}
+.mp-footer-message{flex:1;min-width:0;margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
+.mp-footer-message[data-tone='error']{color:var(--dsw-alias-state-error-primary)}
+.mp-footer-actions{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
+
+/* Dialogs: the harness mask, one card, the actions at the end. */
+.mp-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px}
+.mp-mask{position:absolute;inset:0;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.35));backdrop-filter:var(--dsw-mask-blur,none)}
+.mp-dialog{position:relative;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;width:min(460px,100%);max-height:calc(100dvh - 48px);padding:20px 22px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-panel,28px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-prominent,0 20px 56px rgba(0,0,0,.28))}
+.mp-dialog-body-scroll{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto}
+.mp-dialog-title{margin:0;font-size:16px;line-height:24px;font-weight:500}
+.mp-dialog-body{margin:0;font-size:14px;line-height:22px;color:var(--dsw-alias-label-secondary)}
+.mp-dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+
+/* The dependency toast in the frame overlay; the layer is click-through, so the
+   toast re-enables pointer events for its own box. */
+.mp-toast{position:fixed;right:20px;bottom:20px;z-index:1100;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;width:320px;max-width:calc(100vw - 40px);padding:14px 16px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,16px);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-shadow-lv3,0 10px 30px rgba(0,0,0,.18));pointer-events:auto}
+.mp-toast-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;line-height:20px;font-weight:500}
+.mp-toast-close{width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:16px;line-height:1;cursor:pointer}
+@media (hover:hover){.mp-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary)}}
+.mp-bar{height:6px;border-radius:999px;corner-shape:round;background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12));overflow:hidden}
 .mp-bar-fill{height:100%;background:var(--dsw-alias-brand-primary);transition:width .25s linear}
 .mp-bar-indeterminate{height:100%;width:40%;background:var(--dsw-alias-brand-primary);animation:mp-slide 1.2s ease-in-out infinite}
 @keyframes mp-slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
-.mp-toast-meta{font-size:11px;color:var(--dsw-alias-label-secondary);display:flex;justify-content:space-between;gap:8px}
-.mp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.mp-toast-meta{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:17px;color:var(--dsw-alias-label-tertiary)}
+.mp-toast-actions{display:flex;align-items:center;gap:8px}
+
+@media (prefers-reduced-motion:reduce){
+.mp-seg-indicator,.mp-seg-tab,.mp-switch-thumb{transition:none}
+.mp-dot[data-tone='busy'],.mp-bar-indeterminate{animation:none}
+}
 `
 
     function Styles() {
       return h('style', null, STYLES)
     }
 
-    function Badge({ tone, children }) {
-      return h('span', { className: `mp-badge mp-badge-${tone ?? 'idle'}` }, children)
+    // ---------------------------------------------------------------------
+    // Controls. Copies of the harness primitives, renamed and trimmed to what
+    // this page renders; behavior (roles, disabled states, focus rings) is the
+    // primitive's, so a user's keyboard and assistive tech see the same thing.
+    // ---------------------------------------------------------------------
+
+    function Tag({ tone, children }) {
+      return h('span', { className: 'mp-tag', 'data-tone': tone ?? 'outline' }, children)
     }
 
-    function phaseTone(phase) {
-      if (phase === 'ready') return 'success'
-      if (phase === 'failed') return 'error'
-      if (phase === 'provisioning') return 'warn'
-      return 'idle'
+    function Button({ children, onClick, variant, size, disabled, title, describedBy }) {
+      const classes = ['mp-btn']
+      if (variant !== undefined) classes.push(`mp-btn-${variant}`)
+      if (size === 'lg') classes.push('mp-btn-lg')
+      return h('button', {
+        type: 'button',
+        className: classes.join(' '),
+        onClick,
+        disabled: disabled === true,
+        title: title,
+        'aria-describedby': describedBy,
+      }, children)
     }
 
-    function Field({ label, hint, children }) {
-      return h('div', { className: 'mp-row mp-row-block' },
-        h('label', { className: 'mp-label' }, label),
-        children,
-        hint === undefined ? null : h('p', { className: 'mp-hint' }, hint))
+    function Switch({ checked, onChange, disabled, label, labelledBy }) {
+      return h('button', {
+        type: 'button',
+        role: 'switch',
+        'aria-checked': checked === true,
+        'aria-label': label,
+        'aria-labelledby': labelledBy,
+        className: 'mp-switch',
+        disabled: disabled === true,
+        onClick: () => {
+          if (disabled !== true) onChange(checked !== true)
+        },
+      }, h('span', { className: 'mp-switch-thumb' }))
     }
 
-    function TextInput({ value, onChange, placeholder, disabled }) {
+    /**
+     * A single-choice control for two or three short options.
+     *
+     * Every choice is visible at once instead of hiding the alternatives behind
+     * a menu: these are three-way decisions the user makes by reading the
+     * options, and the row is short enough that all of them fit.
+     */
+    function Segmented({ id, label, value, options, onChange, disabled }) {
+      const list = useRef(null)
+      const index = Math.max(0, options.findIndex(option => option.value === value))
+      // A walk key reports the next value and the owner re-renders with it; the
+      // keyboard then follows the selection, so the roving tab stop stays under
+      // the focused radio and the next arrow continues from there.
+      useEffect(() => {
+        const root = list.current
+        if (root === null || !root.contains(document.activeElement)) return
+        const current = root.querySelector('[role="radio"][aria-checked="true"]')
+        if (current !== null && typeof current.focus === 'function') current.focus()
+      }, [value])
+      const walk = event => {
+        const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+        if (!forward && !backward) return
+        event.preventDefault()
+        if (disabled === true) return
+        const step = forward ? 1 : -1
+        const next = options[(index + step + options.length) % options.length]
+        if (next !== undefined && next.value !== value) onChange(next.value)
+      }
+      return h('div', {
+        ref: list,
+        className: 'mp-seg',
+        role: 'radiogroup',
+        'aria-labelledby': id,
+        style: {
+          '--mp-seg-count': String(options.length),
+          '--mp-seg-index': String(index),
+        },
+      },
+      h('span', { className: 'mp-seg-indicator', 'aria-hidden': 'true' }),
+      options.map(option => h('button', {
+        key: option.value,
+        type: 'button',
+        role: 'radio',
+        'aria-checked': option.value === value,
+        tabIndex: option.value === value ? 0 : -1,
+        className: 'mp-seg-tab',
+        disabled: disabled === true,
+        onClick: () => {
+          if (disabled !== true && option.value !== value) onChange(option.value)
+        },
+        onKeyDown: walk,
+      }, option.label)))
+    }
+
+    /** A labelled text or number field: the label over its control. */
+    function Field({ id, label, children }) {
+      return h('div', { className: 'mp-field' },
+        h('label', { className: 'mp-label', htmlFor: id }, label),
+        children)
+    }
+
+    /** A labelled choice group, where the label names the group instead of a control. */
+    function GroupField({ id, label, children }) {
+      return h('div', { className: 'mp-field' },
+        h('span', { className: 'mp-label', id }, label),
+        children)
+    }
+
+    /**
+     * One switch row: the label at the start, the switch at the end.
+     *
+     * The visible text names the control through `aria-labelledby`, so a screen
+     * reader announces the same words the row shows; the switch keeps its own
+     * `aria-label` for the case where the label node is missing.
+     */
+    function SwitchField({ id, label, checked, onChange, disabled }) {
+      const labelId = `${id}-label`
+      return h('div', { className: 'mp-field mp-field-row' },
+        h('span', { className: 'mp-label', id: labelId }, label),
+        h(Switch, { checked, onChange, disabled, label, labelledBy: labelId }))
+    }
+
+    /** A read-only row: the label at the start, the resolved value at the end. */
+    function ValueField({ label, children }) {
+      return h('div', { className: 'mp-row' },
+        h('span', { className: 'mp-label' }, label),
+        h('span', { className: 'mp-value' }, children))
+    }
+
+    function TextInput({ id, value, onChange, placeholder, disabled, numeric, invalid }) {
       return h('input', {
+        id,
         className: 'mp-input',
         type: 'text',
         value,
         placeholder,
         disabled: disabled === true,
-        onChange: event => onChange(event.target.value),
         spellCheck: false,
-      })
-    }
-
-    function NumberInput({ value, onChange, min, placeholder }) {
-      return h('input', {
-        className: 'mp-input',
-        type: 'number',
-        min,
-        value: String(value),
-        placeholder,
+        autoComplete: 'off',
+        inputMode: numeric === true ? 'numeric' : undefined,
+        'aria-invalid': invalid === true ? true : undefined,
         onChange: event => onChange(event.target.value),
       })
     }
 
     /**
-     * A single-choice row.
+     * One group of settings: a heading row, then fields separated by hairlines.
      *
-     * Every choice this page offers has at most four short options, so a row of
-     * radios shows all of them at once instead of hiding three behind a
-     * dropdown: nothing to open, nothing to scroll, one click to switch.
+     * `view` only picks the heading level: under the section's own `h1`, groups
+     * are `h2`; on a bundle page the host's page title is an `h3`, so groups sit
+     * beside it as `h3` instead of inverting the outline.
      */
-    function RadioGroup({ name, value, options, onChange }) {
-      return h('div', { className: 'mp-radio-row', role: 'radiogroup' },
-        options.map(option => h('label', { key: option.value, className: 'mp-radio' },
-          h('input', {
-            type: 'radio',
-            name,
-            value: option.value,
-            checked: value === option.value,
-            onChange: () => onChange(option.value),
-          }),
-          h('span', null, option.label))))
+    function Section({ title, meta, actions, view, children }) {
+      return h('section', { className: 'mp-section' },
+        h('div', { className: 'mp-section-head' },
+          h(view === 'page' ? 'h3' : 'h2', { className: 'mp-section-title' }, title),
+          meta === undefined || meta === null ? null : h('span', { className: 'mp-section-meta' }, meta),
+          actions === undefined || actions === null
+            ? null
+            : h('div', { className: 'mp-section-actions' }, actions)),
+        children)
     }
-
-    function Toggle({ checked, onChange, label, hint }) {
-      return h('div', { className: 'mp-row-block' },
-        h('label', { className: 'mp-toggle' },
-          h('input', { type: 'checkbox', checked, onChange: event => onChange(event.target.checked) }),
-          h('span', null, label)),
-        hint === undefined ? null : h('p', { className: 'mp-hint', style: { marginLeft: 22 } }, hint))
-    }
-
-    function Button({ children, onClick, disabled, variant, title }) {
-      return h('button', {
-        type: 'button',
-        className: `mp-btn${variant === 'primary' ? ' mp-btn-primary' : ''}${variant === 'danger' ? ' mp-btn-danger' : ''}`,
-        onClick,
-        disabled: disabled === true,
-        title,
-      }, children)
-    }
-
-    /** The editable fields, in the order the page renders them. */
-    const TEXT_FIELDS = ['matlabRoot', 'initialWorkingFolder', 'mcpServerPath', 'serverName', 'githubProxy']
 
     function draftFrom(state) {
       const config = state.config
@@ -531,226 +678,75 @@ window.__ModuleLoader__.load({
       return true
     }
 
+    /** The number fields the form writes, with the smallest value each accepts. */
+    const NUMBER_FIELDS = { toolCallTimeoutMs: 1, provisionTimeoutMs: 1, provisionWaitMs: 0 }
 
-    function StatusCard({ t, state, onRefresh }) {
-      const routeList = state.github?.routes ?? []
-      const tools = state.probe?.ok === true ? state.probe.tools.length : undefined
-      const resources = state.probe?.ok === true ? state.probe.resources.length : undefined
-      return h('div', { className: 'mp-card' },
-        h('div', { className: 'mp-card-head' },
-          h('div', null,
-            h('h2', { className: 'mp-card-title' }, t('title')),
-            h('p', { className: 'mp-hint' }, t('subtitle'))),
-          h('div', { className: 'mp-actions' },
-            h(Badge, { tone: phaseTone(state.phase) }, state.phase),
-            h(Button, { onClick: onRefresh }, t('refresh')))),
-        h('dl', { className: 'mp-kv' },
-          h('dt', null, t('pluginVersion')),
-          h('dd', null, state.version ?? t('none')),
-          h('dt', null, t('matlab')),
-          h('dd', null, state.matlab?.root ?? t('notDetected')),
-          h('dt', null, t('server')),
-          h('dd', null, state.server?.path ?? t('notDetected')),
-          h('dt', null, t('route')),
-          h('dd', null, routeList.length === 0 ? t('none') : routeList.join(' → ')),
-          h('dt', null, t('groups')),
-          h('dd', null, String(state.groups.length)),
-          h('dt', null, t('tools')),
-          h('dd', null, tools === undefined ? t('none') : `${tools} / ${resources}`)),
-        state.error === null ? null : h('p', { className: 'mp-error' }, `${t('error')}: ${state.error}`),
-        state.warnings.length === 0 ? null : h('p', { className: 'mp-note' }, `${t('warnings')}: ${state.warnings.join(' · ')}`),
-        state.editable ? null : h('p', { className: 'mp-note' }, t('editableUnavailable')))
+    /**
+     * Whether a number box holds something the form cannot save.
+     *
+     * An empty box is not invalid: it means "keep the stored value". Anything
+     * else must parse to a finite number at or above the field's floor.
+     */
+    function numberInvalid(text, min) {
+      const trimmed = String(text ?? '').trim()
+      if (trimmed === '') return false
+      const value = Number(trimmed)
+      return !Number.isFinite(value) || value < min
     }
 
-    function GroupsCard({ t, state, selected, onSelected }) {
-      const groups = state.groups
-      const editable = state.editable
-      const requiredNames = groups.filter(group => group.required === true).map(group => group.name)
-      const rows = groups.map(group => {
-        const required = group.required === true
-        return h('label', {
-          key: group.name,
-          className: required ? 'mp-group mp-group-required' : 'mp-group',
-          title: group.description === undefined || group.description === '' ? undefined : group.description,
-        },
-          h('span', { className: 'mp-group-check' },
-            h('input', {
-              type: 'checkbox',
-              checked: required || selected.has(group.name),
-              disabled: !editable || required,
-              onChange: event => {
-                if (required) return
-                const next = new Set(selected)
-                if (event.target.checked) next.add(group.name)
-                else next.delete(group.name)
-                onSelected(next)
-              },
-            }),
-            h('span', { className: 'mp-group-name' },
-              h('span', null, group.displayName || group.name),
-              required ? h('span', { className: 'mp-badge' }, t('required')) : null)),
-          h('span', { className: 'mp-group-count' }, `${group.skills} ${t('skillsUnit')}`))
-      })
-      return h('div', { className: 'mp-card' },
-        h('div', { className: 'mp-card-head' },
-          h('h2', { className: 'mp-card-title' }, t('groupsTitle')),
-          h('div', { className: 'mp-actions' },
-            h(Button, {
-              onClick: () => onSelected(new Set(groups.map(group => group.name))),
-              disabled: groups.length === 0 || !editable,
-            }, t('selectAll')),
-            h(Button, {
-              onClick: () => onSelected(new Set(requiredNames)),
-              disabled: groups.length === 0 || !editable,
-            }, t('selectNone')))),
-        h('p', { className: 'mp-hint' }, t('groupsHint')),
-        groups.length === 0
-          ? h('p', { className: 'mp-note' }, t('noToolkit'))
-          : h('div', { className: 'mp-groups-wrap' },
-            h('div', { className: 'mp-groups-head' },
-              h('span', null, t('groupColumn')),
-              h('span', null, t('skillsColumn'))),
-            h('div', { className: 'mp-groups', role: 'group', 'aria-label': t('groupsTitle') }, rows)))
+    /**
+     * The patch for the draft's number boxes, or null when one is unusable.
+     *
+     * An empty box means "keep the stored value", so it is omitted rather than
+     * written as 0 — the form never substitutes a number the user did not type.
+     */
+    function numericPatch(draft) {
+      const patch = {}
+      for (const [key, min] of Object.entries(NUMBER_FIELDS)) {
+        const trimmed = String(draft[key] ?? '').trim()
+        if (trimmed === '') continue
+        const value = Number(trimmed)
+        if (!Number.isFinite(value) || value < min) return null
+        patch[key] = value
+      }
+      return patch
     }
 
-    function MatlabCard({ t, state, draft, onDraft }) {
-      return h('div', { className: 'mp-card' },
-        h('h2', { className: 'mp-card-title' }, t('matlabTitle')),
-        h(Field, { label: t('matlabRoot'), hint: t('matlabRootHint') },
-          h(TextInput, {
-            value: draft.matlabRoot,
-            disabled: !state.editable,
-            placeholder: discoveredValue(state.matlab, 'root') ?? PLACEHOLDERS.matlabRoot,
-            onChange: value => onDraft({ ...draft, matlabRoot: value }),
-          })),
-        h(Field, { label: t('displayMode') },
-          h(RadioGroup, {
-            name: 'matlab-display-mode',
-            value: draft.displayMode,
-            onChange: value => onDraft({ ...draft, displayMode: value }),
-            options: [
-              { value: 'desktop', label: t('desktop') },
-              { value: 'nodesktop', label: t('nodesktop') },
-            ],
-          })),
-        h(Field, { label: t('sessionMode') },
-          h(RadioGroup, {
-            name: 'matlab-session-mode',
-            value: draft.sessionMode,
-            onChange: value => onDraft({ ...draft, sessionMode: value }),
-            options: [
-              { value: 'auto', label: t('auto') },
-              { value: 'existing', label: t('existing') },
-              { value: 'new', label: t('newSession') },
-            ],
-          })),
-        h(Toggle, {
-          checked: draft.useWorkspaceFolder === true,
-          onChange: value => onDraft({ ...draft, useWorkspaceFolder: value }),
-          label: t('workspaceFolder'),
-          hint: t('workspaceFolderHint'),
-        }),
-        h(Field, { label: t('initialWorkingFolder'), hint: t('initialWorkingFolderHint') },
-          h(TextInput, {
-            value: draft.initialWorkingFolder,
-            disabled: draft.useWorkspaceFolder === true,
-            placeholder: PLACEHOLDERS.initialWorkingFolder,
-            onChange: value => onDraft({ ...draft, initialWorkingFolder: value }),
-          })),
-        h(Toggle, {
-          checked: draft.initializeMatlabOnStartup,
-          onChange: value => onDraft({ ...draft, initializeMatlabOnStartup: value }),
-          label: t('initialize'),
-          hint: t('initializeHint'),
-        }),
-        h(Toggle, {
-          checked: draft.disableTelemetry,
-          onChange: value => onDraft({ ...draft, disableTelemetry: value }),
-          label: t('telemetry'),
-          hint: t('telemetryHint'),
-        }))
+    /**
+     * Only what the user changed travels.
+     *
+     * A field the page never touched keeps the value the profile stored, which
+     * matters for settings the Host normalizes on the way to the page: a
+     * `githubProxy` list, for example, reaches this form as its first prefix, and
+     * rewriting it during an unrelated save would drop the rest of the list.
+     */
+    function fieldPatch(draft, initial, numeric) {
+      const patch = {}
+      for (const key of Object.keys(draft)) {
+        if (key in NUMBER_FIELDS) continue
+        if (JSON.stringify(draft[key]) !== JSON.stringify(initial[key])) patch[key] = draft[key]
+      }
+      for (const [key, value] of Object.entries(numeric)) {
+        if (String(initial[key]) !== String(value)) patch[key] = value
+      }
+      return patch
     }
 
-    function ServerCard({ t, state, draft, onDraft }) {
-      return h('div', { className: 'mp-card' },
-        h('h2', { className: 'mp-card-title' }, t('serverTitle')),
-        h(Field, { label: t('mcpServerPath'), hint: t('mcpServerPathHint') },
-          h(TextInput, {
-            value: draft.mcpServerPath,
-            placeholder: discoveredValue(state.server, 'path') ?? PLACEHOLDERS.mcpServerPath,
-            onChange: value => onDraft({ ...draft, mcpServerPath: value }),
-          })),
-        h(Field, { label: t('serverName'), hint: t('serverNameHint') },
-          h(TextInput, {
-            value: draft.serverName,
-            placeholder: PLACEHOLDERS.serverName,
-            onChange: value => onDraft({ ...draft, serverName: value }),
-          })),
-        h(Field, { label: t('agentName'), hint: t('agentNameHint') },
-          h(TextInput, {
-            value: draft.agentName,
-            placeholder: PLACEHOLDERS.agentName,
-            onChange: value => onDraft({ ...draft, agentName: value }),
-          })),
-        h(Field, { label: t('callTimeout'), hint: t('callTimeoutHint') },
-          h(NumberInput, {
-            value: draft.toolCallTimeoutMs,
-            min: 1000,
-            placeholder: PLACEHOLDERS.toolCallTimeoutMs,
-            onChange: value => onDraft({ ...draft, toolCallTimeoutMs: value }),
-          })))
-    }
-
-    function NetworkCard({ t, state, draft, onDraft }) {
-      const routeList = state.github?.routes ?? []
-      return h('div', { className: 'mp-card' },
-        h('h2', { className: 'mp-card-title' }, t('networkTitle')),
-        h(Field, { label: t('githubProxy'), hint: t('githubProxyHint') },
-          h(TextInput, {
-            value: draft.githubProxy,
-            placeholder: PLACEHOLDERS.githubProxy,
-            onChange: value => onDraft({ ...draft, githubProxy: value }),
-          })),
-        h(Field, { label: t('region') },
-          h(RadioGroup, {
-            name: 'matlab-download-region',
-            value: draft.downloadRegion,
-            onChange: value => onDraft({ ...draft, downloadRegion: value }),
-            options: [
-              { value: 'auto', label: t('regionAuto') },
-              { value: 'china', label: t('regionChina') },
-              { value: 'global', label: t('regionGlobal') },
-            ],
-          })),
-        h(Field, { label: t('routes') },
-          h('p', { className: 'mp-note' }, routeList.length === 0 ? t('none') : routeList.join(' → '))),
-        h(Field, { label: t('timeout'), hint: t('timeoutHint') },
-          h(NumberInput, {
-            value: draft.provisionTimeoutMs,
-            min: 10000,
-            placeholder: PLACEHOLDERS.provisionTimeoutMs,
-            onChange: value => onDraft({ ...draft, provisionTimeoutMs: value }),
-          })),
-        h(Field, { label: t('wait'), hint: t('waitHint') },
-          h(NumberInput, {
-            value: draft.provisionWaitMs,
-            min: 0,
-            placeholder: PLACEHOLDERS.provisionWaitMs,
-            onChange: value => onDraft({ ...draft, provisionWaitMs: value }),
-          })),
-        h(Toggle, {
-          checked: draft.watchSkills,
-          onChange: value => onDraft({ ...draft, watchSkills: value }),
-          label: t('watch'),
-          hint: t('watchHint'),
-        }))
+    /** How a phase reads and how its dot is toned. */
+    const PHASES = {
+      starting: { key: 'phaseStarting', tone: 'busy' },
+      skills: { key: 'phaseSkills', tone: 'busy' },
+      provisioning: { key: 'phaseProvisioning', tone: 'warn' },
+      tools: { key: 'phaseTools', tone: 'busy' },
+      ready: { key: 'phaseReady', tone: 'success' },
+      failed: { key: 'phaseFailed', tone: 'error' },
     }
 
     /**
      * The release tag inside a version line.
      *
      * The server reports its version as `github.com/matlab/matlab-mcp-server
-     * v0.16.0`; the local-tag column wants the tag alone.
+     * v0.16.0`; the status line and the local-tag column want the tag alone.
      */
     function releaseTag(text) {
       if (typeof text !== 'string') return undefined
@@ -759,39 +755,75 @@ window.__ModuleLoader__.load({
       return match[0].startsWith('v') ? match[0] : `v${match[0]}`
     }
 
-    /** One artifact's row: its name, the installed release tag, and the published one. */
-    function UpdateRow({ t, label, status, checked }) {
+    /**
+     * The status line: the phase, then what the Host resolved, then refresh.
+     *
+     * It stays a single wrapping row rather than a table of every path: the two
+     * paths are already shown in the empty-box placeholders of their own
+     * fields, and what a reader wants here is "is it working, against which
+     * MATLAB, with how many tools".
+     */
+    function StatusLine({ t, state, onRefresh }) {
+      const phase = PHASES[state.phase]
+      const pending = state.diagnostics === 'pending'
+      const tools = state.probe !== null && state.probe.ok === true ? state.probe.tools.length : undefined
+      const resources = state.probe !== null && state.probe.ok === true ? state.probe.resources.length : undefined
+      const matlab = state.matlab === null ? undefined : tailOf(state.matlab.root)
+      const server = releaseTag(state.server?.version) ?? tailOf(state.server?.path)
+      const facts = []
+      if (tools !== undefined) {
+        facts.push({ key: 'tools', text: `${tools} ${t('tools')}` })
+        facts.push({ key: 'resources', text: `${resources} ${t('resources')}` })
+      }
+      return h('div', { className: 'mp-status' },
+        h('span', { className: 'mp-status-main' },
+          h('span', { className: 'mp-dot', 'data-tone': phase?.tone ?? 'idle', 'aria-hidden': 'true' }),
+          h('span', { role: 'status' }, phase === undefined ? state.phase ?? t('unknown') : t(phase.key))),
+        h('span', { className: 'mp-status-facts' },
+          h('span', { className: 'mp-fact' },
+            h('span', null, t('matlabTitle')),
+            h('span', { className: 'mp-fact-value', title: state.matlab?.root ?? undefined },
+              pending ? t('unknown') : matlab ?? t('notDetected'))),
+          h('span', { className: 'mp-fact' },
+            h('span', null, t('serverTitle')),
+            h('span', { className: 'mp-fact-value', title: state.server?.path ?? undefined },
+              pending ? t('unknown') : server ?? t('notDetected'))),
+          facts.map(fact => h('span', { key: fact.key, className: 'mp-fact' },
+            h('span', { className: 'mp-fact-value' }, fact.text)))),
+        h('span', { className: 'mp-status-end' },
+          h(Button, { variant: 'ghost', onClick: onRefresh }, t('refresh'))))
+    }
+
+    /** One artifact's row: its name, the installed tag, and the published one. */
+    function ArtifactRow({ t, label, status, checked }) {
       const installed = status?.installed === true
-      const local = status?.current
+      const current = status?.current
       const latest = status?.latest
-      const localTag = installed === false
+      // The Host reports a server's version as `github.com/… v0.16.0`; the
+      // column wants the tag, and falls back to the raw text when there is none.
+      const local = installed === false
         ? t('notInstalled')
-        : local === undefined || local === ''
-          ? t('unknownTag')
-          : local
+        : typeof current === 'string' && current !== ''
+          ? releaseTag(current) ?? current
+          : t('unknownTag')
       // A check that has not run yet has nothing to report for the third column;
       // once it has, the published tag is shown even when it equals the local one.
       const hasLatest = checked === true && latest !== undefined && latest !== null && latest !== ''
-      return h('div', { className: 'mp-tags-row', role: 'row' },
-        h('span', { className: 'mp-tags-name', role: 'rowheader' }, label),
-        h('span', { className: 'mp-tags-tag', role: 'cell' }, localTag),
-        h('span', { className: 'mp-tags-tag', role: 'cell' },
-          h('span', { className: hasLatest ? undefined : 'mp-tags-tag-idle' }, hasLatest ? latest : t('notChecked')),
-          status?.outdated === true ? h(Badge, { tone: 'warn' }, t('updateAvailable')) : null),
-        status?.error === undefined || status.error === null
-          ? null
-          : h('span', { className: 'mp-error mp-tags-error' }, status.error))
+      const failed = status?.error !== undefined && status?.error !== null
+      return h(React.Fragment, null,
+        h('tr', null,
+          h('th', { scope: 'row', className: 'mp-table-name' }, label),
+          h('td', null, h('span', { className: installed === false ? 'mp-idle' : 'mp-mono' }, local)),
+          h('td', null,
+            h('span', { className: hasLatest ? 'mp-mono' : 'mp-idle' }, hasLatest ? latest : t('notChecked')),
+            status?.outdated === true ? h(Tag, { tone: 'warn' }, t('updateAvailable')) : null)),
+        failed
+          ? h('tr', null, h('td', { colSpan: 3 }, h('p', { className: 'mp-error' }, status.error)))
+          : null)
     }
 
-    /**
-     * One card for the local artifacts: what is installed, what is published, and
-     * the three things a user can do about it.
-     *
-     * Local presence and tags come from the state the page already loaded, so
-     * entering the page is itself the local check; only "what is published"
-     * needs the online probe behind {@link onCheck}.
-     */
-    function DependenciesCard({ t, state, busy, checking, working, note, onCheck, onDownload, onRemove }) {
+    /** The artifact table, the fetch in flight, and the three actions that read or change it. */
+    function DependenciesSection({ t, view, state, progress, busy, checking, working, note, onCheck, onDownload, onRemove }) {
       const updates = state.updates
       const serverInstalled = state.server !== null && state.server !== undefined
       const toolkitInstalled = state.toolkit.length > 0
@@ -817,73 +849,442 @@ window.__ModuleLoader__.load({
       const failed = updates !== null && (
         (server.error !== undefined && server.error !== null)
         || (toolkit.error !== undefined && toolkit.error !== null))
+      // A check only compared what it could read: an unmanaged toolkit reports
+      // neither a tag nor a failure, and claiming "up to date" for it would be
+      // an assertion the Host never made.
+      const compared = [server, toolkit]
+        .filter(status => status.latest !== undefined && status.latest !== null && status.latest !== '')
       const summary = outdated
         ? t('updateAvailable')
         : failed
           ? t('checkFailed')
-          : t('upToDate')
+          : compared.length === 0 ? null : t('upToDate')
       const workingDownload = working === 'download'
       const workingRemove = working === 'remove'
-      return h('div', { className: 'mp-card' },
-        h('h2', { className: 'mp-card-title' }, t('dependenciesTitle')),
-        h('p', { className: 'mp-hint' }, t('dependenciesHint')),
-        h('div', { className: 'mp-tags', role: 'table' },
-          h('div', { className: 'mp-tags-row mp-tags-head', role: 'row' },
-            h('span', { role: 'columnheader' }, t('artifactColumn')),
-            h('span', { role: 'columnheader' }, t('localTagColumn')),
-            h('span', { role: 'columnheader' }, t('latestTagColumn')),
-            h('span', { 'aria-hidden': 'true' })),
-          h(UpdateRow, { t, label: t('serverTitle'), status: server, checked: updates !== null }),
-          h(UpdateRow, { t, label: t('toolkitLabel'), status: toolkit, checked: updates !== null })),
-        updates === null ? null : h('p', { className: 'mp-note' }, summary),
-        h('div', { className: 'mp-actions' },
-          h(Button, { onClick: onCheck, disabled: busy || checking || working !== null }, checking ? t('checking') : t('checkUpdates')),
+      const reasonId = `mp-${view}-download-reason`
+      const running = progress !== null && progress.active === true
+      const stage = progress === null || progress.stage !== 'toolkit' ? t('progressDownload') : t('progressToolkit')
+      const bytes = progress === null
+        ? ''
+        : progress.totalBytes === null
+          ? `${t('progressBytes')} ${formatBytes(progress.bytes)}`
+          : `${t('progressBytes')} ${formatBytes(progress.bytes)} / ${formatBytes(progress.totalBytes)}`
+      return h(Section, {
+        title: t('dependenciesTitle'),
+        view,
+        actions: [
           h(Button, {
-            variant: 'primary',
+            key: 'check',
+            variant: 'outline',
+            onClick: onCheck,
+            disabled: busy || checking || working !== null,
+          }, checking ? t('checking') : t('checkUpdates')),
+          h(Button, {
+            key: 'download',
+            variant: 'outline',
             onClick: onDownload,
             disabled: busy || working !== null || !canDownload,
             title: canDownload ? undefined : t('downloadBlocked'),
+            describedBy: canDownload ? undefined : reasonId,
           }, workingDownload ? t('downloading') : t('downloadLatest')),
           h(Button, {
+            key: 'remove',
             variant: 'danger',
             onClick: onRemove,
-            disabled: busy || working !== null || (!serverInstalled && !toolkitInstalled),
-          }, workingRemove ? t('removing') : t('removeLocal'))),
-        note === null || note === undefined
-          ? null
-          : h('p', { className: note.tone === 'error' ? 'mp-error' : 'mp-note' }, note.text))
-    }
-
-    /** The confirmation the destructive action must pass through. */
-    function ConfirmRemove({ t, busy, onCancel, onConfirm }) {
-      return h('div', { className: 'mp-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('confirmRemoveTitle') },
-        h('div', { className: 'mp-modal-card' },
-          h('h3', { className: 'mp-modal-title' }, t('confirmRemoveTitle')),
-          h('p', { className: 'mp-hint' }, t('confirmRemoveBody')),
-          h('div', { className: 'mp-actions' },
-            h(Button, { onClick: onCancel, disabled: busy }, t('confirmRemoveCancel')),
-            h(Button, { variant: 'danger', onClick: onConfirm, disabled: busy },
-              busy ? t('removing') : t('confirmRemoveConfirm')))))
+            // A fetch owns both artifacts while it runs; the Host refuses the
+            // delete in that window, so the control refuses it first.
+            disabled: busy || working !== null || state.phase === 'provisioning'
+              || (!serverInstalled && !toolkitInstalled),
+          }, workingRemove ? t('removing') : t('removeLocal')),
+        ],
+      },
+      h('table', { className: 'mp-table' },
+        h('thead', null,
+          h('tr', null,
+            h('th', { scope: 'col' }, t('artifactColumn')),
+            h('th', { scope: 'col' }, t('localTagColumn')),
+            h('th', { scope: 'col' }, t('latestTagColumn')))),
+        h('tbody', null,
+          h(ArtifactRow, { t, label: t('serverTitle'), status: server, checked: updates !== null }),
+          h(ArtifactRow, { t, label: t('toolkitLabel'), status: toolkit, checked: updates !== null }))),
+      // A first-time fetch reports here as well as in the toast: the toast sits
+      // above the plugin page but the settings panel can cover it, and the page
+      // is where the user pressed the button.
+      running
+        ? h('div', { className: 'mp-progress' },
+          h('div', { className: 'mp-progress-head' },
+            h('span', { className: 'mp-progress-stage', role: 'status' }, stage),
+            h('span', { className: 'mp-progress-meta' }, bytes)),
+          h('div', { className: 'mp-bar' },
+            progress.percent === null
+              ? h('div', { className: 'mp-bar-indeterminate' })
+              : h('div', { className: 'mp-bar-fill', style: { width: `${progress.percent}%` } })),
+          progress.route === null
+            ? null
+            : h('p', { className: 'mp-progress-meta' }, `${t('progressRoute')} ${progress.route}`))
+        : null,
+      summary === null
+        ? null
+        : h('p', { className: failed ? 'mp-error' : 'mp-note', role: 'status' }, summary),
+      // Why "Download the newest" is unavailable, for keyboard and screen
+      // readers: a disabled button cannot be focused and takes no title.
+      canDownload
+        ? null
+        : h('span', { id: reasonId, className: 'mp-sr' }, t('downloadBlocked')),
+      note === null || note === undefined
+        ? null
+        : h('p', { className: note.tone === 'error' ? 'mp-error' : 'mp-note', role: 'status' }, note.text))
     }
 
     /**
-     * The page's save bar.
+     * The skill-group switches, with every group's name, requirement, and size.
      *
-     * It is sticky rather than last-in-flow: the page is much taller than the
-     * settings viewport (24 groups plus every card), and a save button nobody
-     * scrolls back to is a save button nobody finds.
+     * A stored selection of `[]` means "every group" to the Host, so "none" is a
+     * state this page cannot save. The last switch therefore stays on, and
+     * "Clear" is unavailable when no group is required: refusing the click is
+     * honest, where saving `[]` would have stored the opposite of the click.
      */
-    function SaveBar({ t, busy, dirty, editable, message, onSave, onRevert }) {
-      return h('div', { className: 'mp-savebar' },
-        h(Button, { variant: 'primary', onClick: onSave, disabled: busy || !dirty || !editable },
-          busy ? t('saving') : t('save')),
-        h(Button, { onClick: onRevert, disabled: busy || !dirty }, t('revert')),
-        message === null
-          ? null
-          : h('span', { className: message.tone === 'error' ? 'mp-error' : 'mp-note' }, message.text))
+    function GroupsSection({ t, view, state, draft, selected, onSelected, onDraft }) {
+      const groups = state.groups
+      const editable = state.editable
+      const requiredNames = groups.filter(group => group.required === true).map(group => group.name)
+      const rows = groups.map(group => {
+        const required = group.required === true
+        const checked = required || selected.has(group.name)
+        return h('label', {
+          key: group.name,
+          className: 'mp-group',
+          title: group.description === undefined || group.description === '' ? undefined : group.description,
+        },
+        h('input', {
+          type: 'checkbox',
+          checked,
+          disabled: !editable || required,
+          onChange: event => {
+            if (required) return
+            const next = new Set(selected)
+            if (event.target.checked) next.add(group.name)
+            else next.delete(group.name)
+            if (next.size === 0) return
+            onSelected(next)
+          },
+        }),
+        h('span', { className: 'mp-group-name' },
+          h('span', null, group.displayName || group.name),
+          required ? h(Tag, null, t('required')) : null),
+        h('span', { className: 'mp-group-count' }, `${group.skills} ${t('skillsUnit')}`))
+      })
+      return h(Section, {
+        title: t('groupsTitle'),
+        view,
+        meta: groups.length === 0 ? null : `${selected.size} / ${groups.length}`,
+        actions: [
+          h(Button, {
+            key: 'all',
+            variant: 'ghost',
+            onClick: () => onSelected(new Set(groups.map(group => group.name))),
+            disabled: groups.length === 0 || !editable,
+          }, t('selectAll')),
+          h(Button, {
+            key: 'none',
+            variant: 'ghost',
+            onClick: () => onSelected(new Set(requiredNames)),
+            disabled: groups.length === 0 || !editable || requiredNames.length === 0,
+          }, t('selectNone')),
+        ],
+      },
+      groups.length === 0
+        ? h('p', { className: 'mp-empty' }, t('noToolkit'))
+        : h('div', { className: 'mp-panel' },
+          h('div', {
+            className: 'mp-list',
+            role: 'group',
+            tabIndex: 0,
+            'aria-label': t('groupsTitle'),
+          }, rows)),
+      h(SwitchField, {
+        id: `mp-${view}-watch`,
+        label: t('watch'),
+        checked: draft.watchSkills === true,
+        disabled: !editable,
+        onChange: value => onDraft({ ...draft, watchSkills: value }),
+      }))
     }
 
-    function SettingsPage({ t }) {
+    function MatlabSection({ t, view, state, draft, onDraft }) {
+      const editable = state.editable
+      const id = name => `mp-${view}-${name}`
+      return h(Section, { title: t('matlabTitle'), view },
+        h(Field, { id: id('matlab-root'), label: t('matlabRoot') },
+          h(TextInput, {
+            id: id('matlab-root'),
+            value: draft.matlabRoot,
+            disabled: !editable,
+            placeholder: discoveredValue(state.matlab, 'root') ?? PLACEHOLDERS.matlabRoot,
+            onChange: value => onDraft({ ...draft, matlabRoot: value }),
+          })),
+        h(GroupField, { id: id('display-mode'), label: t('displayMode') },
+          h(Segmented, {
+            id: id('display-mode'),
+            label: t('displayMode'),
+            value: draft.displayMode,
+            disabled: !editable,
+            onChange: value => onDraft({ ...draft, displayMode: value }),
+            options: [
+              { value: 'desktop', label: t('desktop') },
+              { value: 'nodesktop', label: t('nodesktop') },
+            ],
+          })),
+        h(GroupField, { id: id('session-mode'), label: t('sessionMode') },
+          h(Segmented, {
+            id: id('session-mode'),
+            label: t('sessionMode'),
+            value: draft.sessionMode,
+            disabled: !editable,
+            onChange: value => onDraft({ ...draft, sessionMode: value }),
+            options: [
+              { value: 'auto', label: t('auto') },
+              { value: 'existing', label: t('existing') },
+              { value: 'new', label: t('newSession') },
+            ],
+          })),
+        // The switch comes first: it explains why the folder box below cannot be
+        // edited while the conversation's own folder is in force.
+        h(SwitchField, {
+          id: id('workspace-folder'),
+          label: t('workspaceFolder'),
+          checked: draft.useWorkspaceFolder === true,
+          disabled: !editable,
+          onChange: value => onDraft({ ...draft, useWorkspaceFolder: value }),
+        }),
+        h(Field, { id: id('working-folder'), label: t('initialWorkingFolder') },
+          h(TextInput, {
+            id: id('working-folder'),
+            value: draft.initialWorkingFolder,
+            disabled: !editable || draft.useWorkspaceFolder === true,
+            placeholder: PLACEHOLDERS.initialWorkingFolder,
+            onChange: value => onDraft({ ...draft, initialWorkingFolder: value }),
+          })),
+        h(SwitchField, {
+          id: id('initialize'),
+          label: t('initialize'),
+          checked: draft.initializeMatlabOnStartup === true,
+          disabled: !editable,
+          onChange: value => onDraft({ ...draft, initializeMatlabOnStartup: value }),
+        }),
+        h(SwitchField, {
+          id: id('telemetry'),
+          label: t('telemetry'),
+          checked: draft.disableTelemetry === true,
+          disabled: !editable,
+          onChange: value => onDraft({ ...draft, disableTelemetry: value }),
+        }))
+    }
+
+    function ServerSection({ t, view, state, draft, onDraft }) {
+      const editable = state.editable
+      const id = name => `mp-${view}-${name}`
+      return h(Section, { title: t('serverTitle'), view },
+        h(Field, { id: id('server-path'), label: t('mcpServerPath') },
+          h(TextInput, {
+            id: id('server-path'),
+            value: draft.mcpServerPath,
+            disabled: !editable,
+            placeholder: discoveredValue(state.server, 'path') ?? PLACEHOLDERS.mcpServerPath,
+            onChange: value => onDraft({ ...draft, mcpServerPath: value }),
+          })),
+        h(Field, { id: id('server-name'), label: t('serverName') },
+          h(TextInput, {
+            id: id('server-name'),
+            value: draft.serverName,
+            disabled: !editable,
+            placeholder: PLACEHOLDERS.serverName,
+            onChange: value => onDraft({ ...draft, serverName: value }),
+          })),
+        h(Field, { id: id('agent-name'), label: t('agentName') },
+          h(TextInput, {
+            id: id('agent-name'),
+            value: draft.agentName,
+            disabled: !editable,
+            placeholder: PLACEHOLDERS.agentName,
+            onChange: value => onDraft({ ...draft, agentName: value }),
+          })),
+        h(Field, { id: id('call-timeout'), label: t('callTimeout') },
+          h(TextInput, {
+            id: id('call-timeout'),
+            numeric: true,
+            invalid: numberInvalid(draft.toolCallTimeoutMs, 1),
+            value: draft.toolCallTimeoutMs,
+            disabled: !editable,
+            placeholder: PLACEHOLDERS.toolCallTimeoutMs,
+            onChange: value => onDraft({ ...draft, toolCallTimeoutMs: value }),
+          })))
+    }
+
+    function DownloadSection({ t, view, state, draft, onDraft }) {
+      const editable = state.editable
+      const routeList = state.github?.routes ?? []
+      const id = name => `mp-${view}-${name}`
+      return h(Section, { title: t('downloadTitle'), view },
+        h(Field, { id: id('github-proxy'), label: t('githubProxy') },
+          h(TextInput, {
+            id: id('github-proxy'),
+            value: draft.githubProxy,
+            disabled: !editable,
+            placeholder: PLACEHOLDERS.githubProxy,
+            onChange: value => onDraft({ ...draft, githubProxy: value }),
+          })),
+        h(GroupField, { id: id('download-region'), label: t('region') },
+          h(Segmented, {
+            id: id('download-region'),
+            label: t('region'),
+            value: draft.downloadRegion,
+            disabled: !editable,
+            onChange: value => onDraft({ ...draft, downloadRegion: value }),
+            options: [
+              { value: 'auto', label: t('regionAuto') },
+              { value: 'china', label: t('regionChina') },
+              { value: 'global', label: t('regionGlobal') },
+            ],
+          })),
+        h(ValueField, { label: t('routes') },
+          routeList.length === 0 ? t('none') : routeList.join(' → ')),
+        h(Field, { id: id('provision-timeout'), label: t('timeout') },
+          h(TextInput, {
+            id: id('provision-timeout'),
+            numeric: true,
+            invalid: numberInvalid(draft.provisionTimeoutMs, 1),
+            value: draft.provisionTimeoutMs,
+            disabled: !editable,
+            placeholder: PLACEHOLDERS.provisionTimeoutMs,
+            onChange: value => onDraft({ ...draft, provisionTimeoutMs: value }),
+          })),
+        h(Field, { id: id('provision-wait'), label: t('wait') },
+          h(TextInput, {
+            id: id('provision-wait'),
+            numeric: true,
+            invalid: numberInvalid(draft.provisionWaitMs, 0),
+            value: draft.provisionWaitMs,
+            disabled: !editable,
+            placeholder: PLACEHOLDERS.provisionWaitMs,
+            onChange: value => onDraft({ ...draft, provisionWaitMs: value }),
+          })))
+    }
+
+    /**
+     * The page's save row.
+     *
+     * It is sticky rather than last-in-flow: the page is taller than the
+     * settings viewport (a status line, the artifact table, and up to 24 skill
+     * groups), and a save button nobody scrolls back to is a save button nobody
+     * finds. The settings panel pads its content column 24px, so the row bleeds
+     * over that padding and paints the same strip below itself; on the bundle
+     * page the column belongs to the plugin page, so the bleed is 0.
+     */
+    function SaveFooter({ t, busy, dirty, editable, message, onSave, onRevert }) {
+      return h('div', { className: 'mp-footer' },
+        h('p', { className: 'mp-footer-message', 'data-tone': message?.tone === 'error' ? 'error' : undefined, role: 'status' },
+          message === null || message === undefined ? '' : message.text),
+        h('div', { className: 'mp-footer-actions' },
+          h(Button, {
+            variant: 'ghost',
+            size: 'lg',
+            onClick: onRevert,
+            disabled: busy || !dirty,
+          }, t('revert')),
+          h(Button, {
+            variant: 'primary',
+            size: 'lg',
+            onClick: onSave,
+            disabled: busy || !dirty || !editable,
+          }, busy ? t('saving') : t('save'))))
+    }
+
+    /**
+     * The confirmation the destructive action must pass through.
+     *
+     * Escape closes it, the safe action takes the initial focus, Tab cycles
+     * inside the card, and closing hands focus back to whatever opened it: a
+     * destructive confirmation must never be one stray Enter press away from
+     * deleting, and a keyboard user must never be left behind the mask.
+     */
+    function ConfirmRemove({ t, view, busy, error, onCancel, onConfirm }) {
+      const card = useRef(null)
+      const cancel = useRef(null)
+      // The parent re-renders on its own polls; a mount-only listener reading the
+      // latest callback through a ref keeps focus where the user put it.
+      const cancelAction = useRef(onCancel)
+      cancelAction.current = onCancel
+      useEffect(() => {
+        const previous = document.activeElement
+        cancel.current?.focus()
+        const onKeyDown = event => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopImmediatePropagation()
+            cancelAction.current()
+            return
+          }
+          if (event.key !== 'Tab' || card.current === null) return
+          const focusable = [...card.current.querySelectorAll('button:not(:disabled)')]
+          if (focusable.length === 0) return
+          const first = focusable[0]
+          const last = focusable[focusable.length - 1]
+          const active = document.activeElement
+          const outside = !card.current.contains(active)
+          if (event.shiftKey && (outside || active === first)) {
+            event.preventDefault()
+            last.focus()
+          } else if (!event.shiftKey && (outside || active === last)) {
+            event.preventDefault()
+            first.focus()
+          }
+        }
+        document.addEventListener('keydown', onKeyDown, true)
+        return () => {
+          document.removeEventListener('keydown', onKeyDown, true)
+          if (previous !== null && typeof previous.focus === 'function') previous.focus()
+        }
+      }, [])
+      const titleId = `mp-${view}-confirm-title`
+      return h('div', { className: 'mp-overlay', role: 'presentation' },
+        h('div', { className: 'mp-mask', 'aria-hidden': 'true', onClick: onCancel }),
+        h('div', {
+          className: 'mp-dialog',
+          ref: card,
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-labelledby': titleId,
+        },
+        h('h3', { className: 'mp-dialog-title', id: titleId }, t('confirmRemoveTitle')),
+        h('div', { className: 'mp-dialog-body-scroll' },
+          h('p', { className: 'mp-dialog-body' }, t('confirmRemoveBody')),
+          error === null || error === undefined
+            ? null
+            : h('p', { className: 'mp-error', role: 'alert' }, error)),
+        h('div', { className: 'mp-dialog-actions' },
+          h('button', {
+            type: 'button',
+            className: 'mp-btn mp-btn-outline mp-btn-lg',
+            ref: cancel,
+            disabled: busy,
+            onClick: onCancel,
+          }, t('cancel')),
+          h('button', {
+            type: 'button',
+            className: 'mp-btn mp-btn-danger-solid mp-btn-lg',
+            disabled: busy,
+            onClick: onConfirm,
+          }, busy ? t('removing') : t('confirmRemoveConfirm')))))
+    }
+
+    /**
+     * The one page both entries render.
+     * @param props.t - the plugin's locale reader.
+     * @param props.view - `section` for the Settings panel (draws the page title
+     * and one-liner), `page` for a bundle page (its host already drew them).
+     */
+    function SettingsPage({ t, view }) {
       const [state, setState] = useState(null)
       const [draft, setDraft] = useState(null)
       const [selected, setSelected] = useState(() => new Set())
@@ -894,8 +1295,9 @@ window.__ModuleLoader__.load({
       // means no dependency action is in flight.
       const [working, setWorking] = useState(null)
       const [confirmRemove, setConfirmRemove] = useState(false)
-      // Feedback for a dependency action; it stays inside the dependency card so
-      // the save bar only ever talks about saving.
+      const [confirmError, setConfirmError] = useState(null)
+      // Feedback for a dependency action; it stays inside the dependency
+      // section so the save row only ever talks about saving.
       const [dependencyNote, setDependencyNote] = useState(null)
       const [message, setMessage] = useState(null)
       const initialDraft = useRef(null)
@@ -923,11 +1325,24 @@ window.__ModuleLoader__.load({
         void load()
       }, [load])
 
+      // A fetch in flight reports itself. The loop owns its own next tick, so one
+      // dropped request cannot leave the page stuck on "preparing" until a
+      // manual refresh.
+      const provisioning = state !== null && state.phase === 'provisioning'
       useEffect(() => {
-        if (state === null || state.phase !== 'provisioning') return undefined
-        const timer = setTimeout(() => { void load(false) }, 2500)
-        return () => clearTimeout(timer)
-      }, [state, load])
+        if (!provisioning) return undefined
+        let alive = true
+        let timer
+        const tick = async () => {
+          await load(false)
+          if (alive) timer = setTimeout(tick, 2500)
+        }
+        timer = setTimeout(tick, 2500)
+        return () => {
+          alive = false
+          clearTimeout(timer)
+        }
+      }, [provisioning, load])
 
       const groups = state?.groups ?? []
       const dirty = draft !== null && state !== null && (
@@ -936,45 +1351,52 @@ window.__ModuleLoader__.load({
 
       const save = useCallback(async () => {
         if (draft === null || state === null) return
+        const numeric = numericPatch(draft)
+        if (numeric === null) {
+          setMessage({ tone: 'error', text: t('invalidNumber') })
+          return
+        }
+        // A required group is always part of the saved selection, even if a
+        // stale page state tried to drop it: the Host enforces the same rule.
+        const chosen = groups
+          .filter(group => group.required === true || selected.has(group.name))
+          .map(group => group.name)
+        if (groups.length > 0 && chosen.length === 0) {
+          setMessage({ tone: 'error', text: t('noGroupSelected') })
+          return
+        }
         setBusy(true)
         setMessage(null)
         try {
-          // A required group is always part of the saved selection, even if a
-          // stale page state tried to drop it: the Host enforces the same rule.
-          const chosen = groups
-            .filter(group => group.required === true || selected.has(group.name))
-            .map(group => group.name)
-          const everySelected = groups.length > 0 && chosen.length === groups.length
-          // Every group checked is stored as "all", so groups a later toolkit
-          // adds are included without the user saving a new list.
-          const declared = everySelected ? [] : chosen
-          await postJson('/plugin/matlab/config', {
-            revision: state.revision,
-            patch: {
-              ...draft,
-              toolCallTimeoutMs: Number(draft.toolCallTimeoutMs) || state.config.toolCallTimeoutMs,
-              provisionTimeoutMs: Number(draft.provisionTimeoutMs) || state.config.provisionTimeoutMs,
-              provisionWaitMs: Math.max(0, Math.min(60000, Number(draft.provisionWaitMs) || 0)),
-              skillGroups: declared,
-            },
-          })
+          const patch = fieldPatch(draft, initialDraft.current, numeric)
+          // An empty catalog cannot express a selection, and "every group" is
+          // stored as "all" so a later toolkit release joins automatically.
+          if (groups.length > 0 && !sameSet(selected, initialSelected)) {
+            patch.skillGroups = chosen.length === groups.length ? [] : chosen
+          }
+          await postJson('/plugin/matlab/config', { revision: state.revision, patch })
+          // Reload on success only: the stored document is now what the boxes
+          // show, so the save is no longer dirty, while a failure keeps the
+          // edits the user has to correct.
           await load()
           setMessage({ tone: 'success', text: t('saved') })
         } catch (cause) {
           const text = cause instanceof Error ? cause.message : String(cause)
-          // Reload first and report after: `load()` clears the message, so
-          // setting it before the reload would hide the reason from the user.
-          await load()
+          // The draft survives a failed save: the usual causes are a value the
+          // Host rejected and a revision conflict, and both are fixed here. The
+          // live state is refreshed so a retry carries the current revision.
+          await load(false)
           setMessage({ tone: 'error', text })
         } finally {
           setBusy(false)
         }
-      }, [draft, state, groups, selected, load, t])
+      }, [draft, state, groups, selected, initialSelected, load, t])
 
       const check = useCallback(async () => {
         setChecking(true)
-        // Dependency feedback belongs in the dependency card, not next to Save:
-        // the result line already lives there, and "up to date" is not an edit.
+        // Dependency feedback belongs in the dependency section, not next to
+        // Save: the result line already lives there, and "up to date" is not an
+        // edit.
         setDependencyNote(null)
         setMessage(null)
         try {
@@ -987,7 +1409,7 @@ window.__ModuleLoader__.load({
         } finally {
           setChecking(false)
         }
-      }, [load, t])
+      }, [load])
 
       const download = useCallback(async () => {
         setWorking('download')
@@ -1006,74 +1428,119 @@ window.__ModuleLoader__.load({
 
       const remove = useCallback(async () => {
         setWorking('remove')
+        setConfirmError(null)
         setMessage(null)
         try {
           await postJson('/plugin/matlab/dependencies', { action: 'remove' })
           setConfirmRemove(false)
-          await load()
+          await load(false)
           setDependencyNote({ tone: 'success', text: t('removed') })
         } catch (cause) {
-          setDependencyNote({ tone: 'error', text: cause instanceof Error ? cause.message : String(cause) })
+          // The reason is shown inside the dialog that asked the question, above
+          // the mask, not in the section behind it.
+          setConfirmError(cause instanceof Error ? cause.message : String(cause))
         } finally {
           setWorking(null)
         }
       }, [load, t])
 
       if (state === null || draft === null || initialDraft.current === null) {
-        return h('div', { className: 'mp-page' },
+        return h('div', { className: 'mp-page', 'data-view': view },
           h(Styles),
-          h('p', { className: message === null ? 'mp-note' : 'mp-error' },
-            message === null ? t('saving') : message.text))
+          h('p', { className: message === null ? 'mp-note' : 'mp-error', role: 'status' },
+            message === null ? t('loading') : message.text))
       }
 
-      return h('div', { className: 'mp-page' },
-        h(Styles),
-        h(StatusCard, { t, state, onRefresh: () => { void load() } }),
-        // The dependencies card follows the status card: "what is installed /
-        // what is published" belongs next to the state it compares, before the
-        // long groups list.
-        h(DependenciesCard, {
+      return h('div', {
+        className: 'mp-page',
+        'data-view': view,
+      },
+      h(Styles),
+      // The section owns its own title and one-liner; a bundle page was already
+      // titled, versioned, and described by the Plugin Manager right above this
+      // form, so repeating them here would read as a second page.
+      h('div', { className: 'mp-top' },
+        view === 'section'
+          ? h('header', { className: 'mp-head' },
+            h('div', { className: 'mp-head-row' },
+              h('h1', { className: 'mp-title' }, t('title')),
+              state.version === null || state.version === undefined
+                ? null
+                : h(Tag, { tone: 'neutral' }, `v${state.version}`)),
+            h('p', { className: 'mp-intro' }, t('intro')))
+          : null,
+        // A status refresh must not throw away edits the user has not saved.
+        h(StatusLine, { t, state, onRefresh: () => { void load(false) } })),
+      state.error === null
+        ? null
+        : h('p', { className: 'mp-error', role: 'alert' }, `${t('error')}: ${state.error}`),
+      state.warnings.length === 0
+        ? null
+        : h('p', { className: 'mp-note' }, state.warnings.join(' · ')),
+      state.editable ? null : h('p', { className: 'mp-note' }, t('readOnly')),
+      // The dependency table follows the status line: "what is installed /
+      // what is published" belongs next to the state it compares, before the
+      // long groups list.
+      h(DependenciesSection, {
+        t,
+        view,
+        state,
+        progress: state.progress ?? null,
+        busy,
+        checking,
+        working,
+        note: dependencyNote,
+        onCheck: () => { void check() },
+        onDownload: () => { void download() },
+        onRemove: () => {
+          setConfirmError(null)
+          setConfirmRemove(true)
+        },
+      }),
+      h(GroupsSection, {
+        t,
+        view,
+        state,
+        draft,
+        selected,
+        onSelected: setSelected,
+        onDraft: setDraft,
+      }),
+      h(MatlabSection, { t, view, state, draft, onDraft: setDraft }),
+      h(ServerSection, { t, view, state, draft, onDraft: setDraft }),
+      h(DownloadSection, { t, view, state, draft, onDraft: setDraft }),
+      h(SaveFooter, {
+        t,
+        busy,
+        dirty,
+        editable: state.editable,
+        message,
+        onSave: () => { void save() },
+        onRevert: () => {
+          setDraft(initialDraft.current)
+          setSelected(new Set(initialSelected))
+          setMessage(null)
+        },
+      }),
+      confirmRemove
+        ? h(ConfirmRemove, {
           t,
-          state,
-          busy,
-          checking,
-          working,
-          note: dependencyNote,
-          onCheck: () => { void check() },
-          onDownload: () => { void download() },
-          onRemove: () => setConfirmRemove(true),
-        }),
-        h(GroupsCard, { t, state, selected, onSelected: setSelected }),
-        h(MatlabCard, { t, state, draft, onDraft: setDraft }),
-        h(ServerCard, { t, state, draft, onDraft: setDraft }),
-        h(NetworkCard, { t, state, draft, onDraft: setDraft }),
-        h(SaveBar, {
-          t,
-          busy,
-          dirty,
-          editable: state.editable,
-          message,
-          onSave: () => { void save() },
-          onRevert: () => {
-            setDraft(initialDraft.current)
-            setSelected(new Set(initialSelected))
-            setMessage(null)
-          },
-        }),
-        confirmRemove
-          ? h(ConfirmRemove, {
-            t,
-            busy: working === 'remove',
-            onCancel: () => setConfirmRemove(false),
-            onConfirm: () => { void remove() },
-          })
-          : null)
+          view,
+          busy: working === 'remove',
+          error: confirmError,
+          onCancel: () => setConfirmRemove(false),
+          onConfirm: () => { void remove() },
+        })
+        : null)
     }
 
-    /** The frame-wide progress dialog, driven by the Host's progress record. */
+    /** The frame-wide progress toast, driven by the Host's progress record. */
     function ProgressOverlay({ t }) {
       const [progress, setProgress] = useState(null)
       const [hidden, setHidden] = useState(false)
+      // The toast reappears when a run starts or fails, not on every poll: a
+      // reader who sent a fetch to the background keeps it there.
+      const last = useRef({ run: null, stage: null })
 
       useEffect(() => {
         let alive = true
@@ -1087,8 +1554,11 @@ window.__ModuleLoader__.load({
           }
           if (!alive) return
           if (next !== null) {
+            const run = next.active === true ? next.startedAt ?? 'active' : null
+            if (run !== null && run !== last.current.run) setHidden(false)
+            if (next.stage === 'failed' && last.current.stage !== 'failed') setHidden(false)
+            last.current = { run, stage: next.stage ?? null }
             setProgress(next)
-            if (next.active === true) setHidden(false)
           }
           timer = setTimeout(tick, next?.active === true ? 800 : 6000)
         }
@@ -1147,26 +1617,28 @@ window.__ModuleLoader__.load({
         }
       }
 
-      return h('div', { className: 'mp-toast', role: 'status', 'aria-live': 'polite' },
+      return h('div', { className: 'mp-toast' },
         h(Styles),
         h('div', { className: 'mp-toast-head' },
           h('span', null, title),
-          active ? null : h('button', {
+          h('button', {
             type: 'button',
             className: 'mp-toast-close',
             onClick: () => setHidden(true),
             'aria-label': t('progressHide'),
           }, '\u00d7')),
-        h('p', { className: 'mp-hint' }, line),
+        // Only the stage is a live region: the byte counter changes every poll and
+        // would re-announce the whole card.
+        h('p', { className: 'mp-note', role: 'status' }, line),
         h('div', { className: 'mp-bar' }, bar),
-        h('div', { className: 'mp-toast-meta' },
+        h('div', { className: 'mp-toast-meta', 'aria-hidden': 'true' },
           h('span', null, meta),
           progress.route === null ? null : h('span', null, `${t('progressRoute')} ${progress.route}`)),
         failed ? h('p', { className: 'mp-error' }, progress.error ?? t('none')) : null,
         failed || finished
-          ? h('div', { className: 'mp-actions' },
-            h(Button, { onClick: () => { void retry() } }, t('progressRetry')),
-            h(Button, { onClick: () => setHidden(true) }, t('progressHide')))
+          ? h('div', { className: 'mp-toast-actions' },
+            h(Button, { variant: 'outline', onClick: () => { void retry() } }, t('progressRetry')),
+            h(Button, { variant: 'ghost', onClick: () => setHidden(true) }, t('progressHide')))
           : null)
     }
 
@@ -1251,6 +1723,8 @@ window.__ModuleLoader__.load({
       ctx.effect(() => ctx.locale.register(NS, COPY), 'matlab-agentic: dictionaries')
       const t = ctx.locale.bind(NS)
 
+      // Entry one: the Settings panel. The section owns everything the shell
+      // does not draw for it, so it draws its title, one-liner, and status.
       ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
         id: NS,
@@ -1258,20 +1732,23 @@ window.__ModuleLoader__.load({
         label: () => t('nav'),
         locale: NS,
         inject: () => ({ t }),
-      }, ownerProps => h(SettingsPage, { t: ownerProps?.t ?? t, close: ownerProps?.close })))
+      }, ownerProps => h(SettingsPage, { t: ownerProps?.t ?? t, view: 'section' })))
 
-      // The bundle's own page in Plugin Manager renders the same settings page
-      // through `plugins.bundle.config`, so both entry points show one form and
-      // read/write one config through the same routes. The key is the bundle's
-      // package name as the profile records it; the legacy key keeps the page
-      // working for a profile that still links the pre-rename package name.
+      // Entry two: the bundle's own page in the Plugin Manager. It renders the
+      // same page through `plugins.bundle.config` — the host asks for `page`,
+      // and its summary projection (a card's one-liner) gets the intro alone.
+      // The key is the bundle's package name as the profile records it; the
+      // legacy key keeps the page working for a profile that still links the
+      // pre-rename package name.
       for (const bundleName of ['dsh-matlab', 'dsh-plugin-matlab']) {
         ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
           name: 'plugins.bundle.config',
           key: bundleName,
           locale: NS,
           inject: () => ({ t }),
-        }, ownerProps => h(SettingsPage, { t: ownerProps?.t ?? t })))
+        }, ownerProps => ownerProps?.view === 'summary'
+          ? t('intro')
+          : h(SettingsPage, { t: ownerProps?.t ?? t, view: 'page' })))
       }
 
       ctx.slots.inject('settings.section.icon', () => ctx.slots.register({

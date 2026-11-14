@@ -58,7 +58,9 @@ description:
 
 - `screenshots.json` → `["assets/cover.png", "assets/settings.png"]`
 - `assets/cover.png` → **首图**：MathWorks 的 MATLAB Agentic Toolkit 封面（1600 × 1647，蓝色渐变底、MATLAB 峰线标记，以及 “MATLAB Agentic Toolkit / MATLAB 智能体工具包” 字样）
-- `assets/settings.png` → **设置 → MATLAB 整页长截图**（1600 × 6238，含带插件版本号的状态卡、“依赖”三列表与三个按键、全部 24 个技能组、带自动发现值/示例提示的输入框、“使用当前对话的工作区目录”开关与单行单选项，以及固定在底部的保存条）
+- `assets/settings.png` → **设置 → MATLAB 整页长截图**（1600 × 6238，含一行状态（阶段、MATLAB、MCP Server、工具/资源数）与刷新、“依赖”三列表与三个动作、全部 24 个技能组、带自动发现值/示例占位符的输入框、三处段控与三个开关，以及固定在底部的保存条）
+
+> 1.2.11 起设置页按 DSH 官方设置面的版式重做（分节 + 头发丝分隔 + 段控 + 固定保存条，字段说明基本删掉，见 DESIGN.md §4.11）。**`assets/settings.png` 需要按下面第 69 行的方法重截一次**；文件未换之前，商店详情页展示的仍是 1.2.10 的旧版式。
 
 1.2.0 起截图不再进安装包（`package.json` 的 `files` 去掉 `assets` 与 `docs`），但仍在仓库里给商店读；README 的图片引用已改成绝对 URL，两处都能显示。
 

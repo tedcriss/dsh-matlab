@@ -12,7 +12,7 @@
 
 > 设计与取舍见 [DESIGN.md](DESIGN.md)。命令与字段速查见下文。商店提交材料（条目 YAML、PR 文案）见 [docs/STORE.md](docs/STORE.md)。
 
-![设置 → MATLAB 整页长截图：带插件版本号的状态卡、“依赖”卡片（本地/最新 Tag 与检查更新、下载最新依赖、清空本地依赖三个按键）、24 个技能组开关、启动参数、MCP Server、依赖下载，以及固定在底部的保存条](https://raw.githubusercontent.com/tedcriss/dsh-matlab/main/assets/settings.png)
+![设置 → MATLAB 整页长截图：顶部是一行状态（就绪/准备中、MATLAB 版本、MCP Server 版本、工具与资源数）与刷新按钮，“依赖”一节列出本地/最新 Tag 与检查更新、下载最新依赖、清空本地依赖三个动作，随后是 24 个技能组开关、MATLAB、MCP Server、下载三节字段（段控与开关），以及固定在底部的保存条](https://raw.githubusercontent.com/tedcriss/dsh-matlab/main/assets/settings.png)
 
 ---
 
